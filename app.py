@@ -112,7 +112,7 @@ class KKHChatbot:
     def load_embedding_model(_self):
         """Load the sentence transformer model"""
         try:
-            return SentenceTransformer('intfloat/multilingual-e5-large-instruct')
+            return SentenceTransformer('paraphrase-MiniLM-L3-v2')
         except Exception as e:
             st.error(f"Error loading embedding model: {e}")
             return None
