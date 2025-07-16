@@ -199,7 +199,7 @@ class KKHChatbot:
             return []
     
     def chat_with_lm_studio(self, message: str, context: List[str] = None) -> str:
-        """Send chat request to LM Studio"""
+        """Send chat request to LM Studio or provide fallback response"""
         try:
             # Prepare context-enhanced prompt
             prompt = message
@@ -243,12 +243,114 @@ Please provide a helpful and accurate response based on the nursing information 
                 result = response.json()
                 return result['choices'][0]['message']['content']
             else:
-                return f"Error: Unable to connect to LM Studio (Status: {response.status_code})"
+                return self._get_fallback_response(message, context)
                 
         except requests.exceptions.ConnectionError:
-            return "Error: Cannot connect to LM Studio. Please ensure LM Studio is running on http://localhost:1234"
+            return self._get_fallback_response(message, context)
         except Exception as e:
-            return f"Error: {str(e)}"
+            return self._get_fallback_response(message, context)
+    
+    def _get_fallback_response(self, message: str, context: List[str] = None) -> str:
+        """Provide fallback response when LM Studio is not available"""
+        if context:
+            # Return relevant context if available
+            context_text = "\n\n".join(context[:2])  # Limit to top 2 contexts
+            return f"""**Based on KKH documentation:**
+
+{context_text}
+
+*Note: AI model is currently unavailable. The above information is directly from KKH nursing documentation. Please consult with medical staff for specific patient care decisions.*"""
+        else:
+            # Provide basic responses for common queries
+            message_lower = message.lower()
+            if "dehydration" in message_lower:
+                return """**Signs of Dehydration in Pediatric Patients:**
+
+**Mild (5%):**
+- Slightly dry mucous membranes
+- Decreased urine output
+- Mild thirst
+
+**Moderate (10%):**
+- Dry mucous membranes
+- Sunken eyes
+- Decreased skin turgor
+- Lethargy
+
+**Severe (15%):**
+- Very dry mucous membranes
+- Sunken eyes and fontanelle
+- Poor skin turgor
+- Altered mental status
+- Minimal urine output
+
+*Note: AI model is currently unavailable. Please consult medical staff for patient assessment.*"""
+            
+            elif "cpr" in message_lower:
+                return """**Pediatric CPR Guidelines:**
+
+**Compression-to-Ventilation Ratio:**
+- Single rescuer: 30:2
+- Two rescuers: 15:2
+
+**Compression Depth:**
+- At least 1/3 of chest diameter
+- Infants: 1.5 inches (4 cm)
+- Children: 2 inches (5 cm)
+
+**Compression Rate:**
+- 100-120 compressions per minute
+
+*Note: AI model is currently unavailable. Please refer to current AHA guidelines and hospital protocols.*"""
+            
+            elif "fluid" in message_lower or "resuscitation" in message_lower:
+                return """**Pediatric Fluid Resuscitation:**
+
+**Initial Management:**
+- 20 ml/kg normal saline bolus
+- Reassess after each bolus
+- May repeat up to 3 times (60 ml/kg total)
+
+**Maintenance Fluids (Holliday-Segar):**
+- First 10 kg: 100 ml/kg/day
+- Next 10 kg: 50 ml/kg/day
+- Each additional kg: 20 ml/kg/day
+
+*Note: AI model is currently unavailable. Use the Fluid Calculator tab for precise calculations.*"""
+            
+            elif "refer" in message_lower or "doctor" in message_lower:
+                return """**When to Refer to Doctor Immediately:**
+
+**Pediatric Red Flags:**
+- Any fever in infant <3 months
+- Altered mental status
+- Difficulty breathing or stridor
+- Signs of shock or dehydration
+- Seizures
+- Persistent vomiting
+- Abnormal vital signs for age
+
+**Always Escalate:**
+- When unsure about patient condition
+- When treatment response is poor
+- For medication dosing questions
+- Before discharge planning
+
+*Note: AI model is currently unavailable. Always follow hospital protocols for escalation.*"""
+            
+            else:
+                return f"""**KKH Nursing Assistant**
+
+I understand you're asking about: "{message}"
+
+Unfortunately, the AI model is currently unavailable. However, you can:
+
+1. **Use the Fluid Calculator** for pediatric dosing calculations
+2. **Take the Quiz** to test your nursing knowledge
+3. **Refer to hospital protocols** for specific procedures
+4. **Consult with medical staff** for patient care decisions
+
+*This system is designed to assist, not replace, clinical judgment and hospital protocols.*"""
 
 # Initialize chatbot
 @st.cache_resource
