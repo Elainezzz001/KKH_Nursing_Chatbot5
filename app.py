@@ -5,661 +5,671 @@ import PyPDF2
 import faiss
 import numpy as np
 from sentence_transformers import SentenceTransformer
-import time
+import os
 import random
 from typing import List, Dict, Tuple
-import os
-import base64
-
-# Import configuration
-try:
-    from config import *
-except ImportError:
-    # Fallback configuration if config.py is not found
-    LM_STUDIO_HOST = "192.168.75.1"
-    LM_STUDIO_PORT = "1234"
-    LM_STUDIO_MODEL = "openhermes-2.5-mistral-7b"
-    TEMPERATURE = 0.7
-    MAX_TOKENS = 500
-    SEARCH_TOP_K = 3
-    EMBEDDING_MODEL = "intfloat/multilingual-e5-large-instruct"
-    CHUNK_SIZE = 500
-    PDF_PATH = "data/KKH Information file.pdf"
-    PAGE_TITLE = "KKH Nursing Chatbot"
-    PAGE_ICON = "🏥"
-    LAYOUT = "wide"
-    PRIMARY_COLOR = "#2E86AB"
+import time
 
 # Page configuration
 st.set_page_config(
-    page_title=PAGE_TITLE,
-    page_icon=PAGE_ICON,
-    layout=LAYOUT,
+    page_title="KKH Nursing Chatbot",
+    page_icon="🏥",
+    layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS for styling
-st.markdown(f"""
+# Custom CSS for better UI
+st.markdown("""
 <style>
-    .main-header {{
+    .main-header {
         font-size: 2.5rem;
-        font-weight: bold;
-        color: {PRIMARY_COLOR};
+        color: #2E86AB;
         text-align: center;
         margin-bottom: 2rem;
-    }}
-    .feature-card {{
-        background-color: #f0f8ff;
-        padding: 1.5rem;
-        border-radius: 10px;
-        border-left: 5px solid {PRIMARY_COLOR};
-        margin: 1rem 0;
-    }}
-    .quick-prompt-btn {{
-        background-color: #4CAF50;
-        color: white;
-        padding: 0.5rem 1rem;
-        border: none;
-        border-radius: 5px;
-        margin: 0.2rem;
-        cursor: pointer;
-    }}
-    .quiz-question {{
-        background-color: #fff3cd;
+    }
+    
+    .chat-message {
         padding: 1rem;
-        border-radius: 8px;
-        margin: 1rem 0;
-        border-left: 4px solid #ffc107;
-    }}
-    .correct-answer {{
-        background-color: #d4edda;
-        padding: 0.5rem;
-        border-radius: 5px;
-        color: #155724;
-    }}
-    .incorrect-answer {{
-        background-color: #f8d7da;
-        padding: 0.5rem;
-        border-radius: 5px;
-        color: #721c24;
-    }}
-    .fluid-calc-result {{
-        background-color: #e7f3ff;
+        border-radius: 0.5rem;
+        margin: 0.5rem 0;
+        display: flex;
+        flex-direction: column;
+    }
+    
+    .user-message {
+        background-color: #E3F2FD;
+        margin-left: 20%;
+    }
+    
+    .bot-message {
+        background-color: #F5F5F5;
+        margin-right: 20%;
+    }
+    
+    .quick-prompt-btn {
+        margin: 0.25rem;
+        padding: 0.5rem 1rem;
+        background-color: #2E86AB;
+        color: white;
+        border: none;
+        border-radius: 0.25rem;
+        cursor: pointer;
+    }
+    
+    .fluid-calc-container {
+        background-color: #F8F9FA;
         padding: 1.5rem;
-        border-radius: 10px;
-        border: 2px solid {PRIMARY_COLOR};
-        font-size: 1.2rem;
-        font-weight: bold;
-        text-align: center;
-    }}
+        border-radius: 0.5rem;
+        margin: 1rem 0;
+    }
+    
+    .quiz-question {
+        background-color: #FFF3E0;
+        padding: 1rem;
+        border-radius: 0.5rem;
+        margin: 1rem 0;
+    }
+    
+    .correct-answer {
+        background-color: #E8F5E8;
+        color: #2E7D32;
+        padding: 0.5rem;
+        border-radius: 0.25rem;
+    }
+    
+    .incorrect-answer {
+        background-color: #FFEBEE;
+        color: #C62828;
+        padding: 0.5rem;
+        border-radius: 0.25rem;
+    }
 </style>
 """, unsafe_allow_html=True)
 
-# Configuration
-LM_STUDIO_URL = f"http://{LM_STUDIO_HOST}:{LM_STUDIO_PORT}/v1/chat/completions"
+# Initialize session state
+if 'chat_history' not in st.session_state:
+    st.session_state.chat_history = []
+if 'embeddings_loaded' not in st.session_state:
+    st.session_state.embeddings_loaded = False
+if 'quiz_score' not in st.session_state:
+    st.session_state.quiz_score = 0
+if 'quiz_current' not in st.session_state:
+    st.session_state.quiz_current = 0
+if 'quiz_answers' not in st.session_state:
+    st.session_state.quiz_answers = {}
+
+# LM Studio configuration
+LM_STUDIO_URL = "http://192.168.75.1:1234/v1/chat/completions"
 
 class KKHChatbot:
     def __init__(self):
         self.embedding_model = None
-        self.pdf_chunks = []
-        self.embeddings = None
         self.faiss_index = None
-        self.quiz_questions = []
-        
+        self.text_chunks = []
+        self.load_embeddings()
+    
     @st.cache_resource
     def load_embedding_model(_self):
-        """Load the embedding model"""
+        """Load the sentence transformer model"""
         try:
-            model = SentenceTransformer(EMBEDDING_MODEL)
-            return model
+            return SentenceTransformer('intfloat/multilingual-e5-large-instruct')
         except Exception as e:
             st.error(f"Error loading embedding model: {e}")
             return None
     
-    def load_pdf(self, pdf_path: str) -> List[str]:
-        """Extract text from PDF and split into chunks"""
+    def load_embeddings(self):
+        """Load and process the PDF content into embeddings"""
+        if st.session_state.embeddings_loaded:
+            return
+        
+        with st.spinner("Loading KKH nursing content..."):
+            try:
+                # Load embedding model
+                self.embedding_model = self.load_embedding_model()
+                if not self.embedding_model:
+                    return
+                
+                # Load PDF content
+                pdf_path = "data/KKH Information file.pdf"
+                if os.path.exists(pdf_path):
+                    self.text_chunks = self.extract_pdf_content(pdf_path)
+                    
+                    if self.text_chunks:
+                        # Create embeddings
+                        embeddings = self.embedding_model.encode(self.text_chunks)
+                        
+                        # Build FAISS index
+                        dimension = embeddings.shape[1]
+                        self.faiss_index = faiss.IndexFlatIP(dimension)
+                        self.faiss_index.add(embeddings.astype('float32'))
+                        
+                        st.session_state.embeddings_loaded = True
+                        st.success("KKH nursing content loaded successfully!")
+                    else:
+                        st.error("No content extracted from PDF")
+                else:
+                    st.error("KKH Information file not found")
+                    
+            except Exception as e:
+                st.error(f"Error loading embeddings: {e}")
+    
+    def extract_pdf_content(self, pdf_path: str) -> List[str]:
+        """Extract text content from PDF and split into chunks"""
         try:
-            chunks = []
             with open(pdf_path, 'rb') as file:
                 pdf_reader = PyPDF2.PdfReader(file)
                 text = ""
                 for page in pdf_reader.pages:
-                    text += page.extract_text() + "\n"
-                
-                # Split text into chunks (configurable size)
-                for i in range(0, len(text), CHUNK_SIZE):
-                    chunk = text[i:i + CHUNK_SIZE].strip()
-                    if chunk:
-                        chunks.append(chunk)
+                    text += page.extract_text()
+            
+            # Split into chunks (approximately 500 characters each)
+            chunks = []
+            chunk_size = 500
+            for i in range(0, len(text), chunk_size):
+                chunk = text[i:i + chunk_size]
+                if len(chunk.strip()) > 50:  # Only include substantial chunks
+                    chunks.append(chunk.strip())
             
             return chunks
         except Exception as e:
-            st.error(f"Error loading PDF: {e}")
+            st.error(f"Error extracting PDF content: {e}")
             return []
     
-    def create_embeddings(self, chunks: List[str]):
-        """Create embeddings for PDF chunks and build FAISS index"""
-        if not self.embedding_model:
-            self.embedding_model = self.load_embedding_model()
-        
-        if not self.embedding_model:
-            return False
-        
-        try:
-            # Create embeddings
-            embeddings = self.embedding_model.encode(chunks)
-            
-            # Build FAISS index
-            dimension = embeddings.shape[1]
-            index = faiss.IndexFlatIP(dimension)  # Inner product for cosine similarity
-            
-            # Normalize embeddings for cosine similarity
-            faiss.normalize_L2(embeddings)
-            index.add(embeddings.astype('float32'))
-            
-            self.pdf_chunks = chunks
-            self.embeddings = embeddings
-            self.faiss_index = index
-            
-            return True
-        except Exception as e:
-            st.error(f"Error creating embeddings: {e}")
-            return False
-    
-    def semantic_search(self, query: str, top_k: int = SEARCH_TOP_K) -> List[str]:
-        """Perform semantic search to find relevant chunks"""
-        if not self.faiss_index or not self.embedding_model:
+    def retrieve_context(self, query: str, top_k: int = 3) -> List[str]:
+        """Retrieve most relevant context chunks for a query"""
+        if not self.embedding_model or not self.faiss_index:
             return []
         
         try:
             # Encode query
             query_embedding = self.embedding_model.encode([query])
-            faiss.normalize_L2(query_embedding)
             
-            # Search
+            # Search similar chunks
             scores, indices = self.faiss_index.search(query_embedding.astype('float32'), top_k)
             
             # Return relevant chunks
-            relevant_chunks = [self.pdf_chunks[idx] for idx in indices[0]]
+            relevant_chunks = []
+            for idx in indices[0]:
+                if idx < len(self.text_chunks):
+                    relevant_chunks.append(self.text_chunks[idx])
+            
             return relevant_chunks
         except Exception as e:
-            st.error(f"Error in semantic search: {e}")
+            st.error(f"Error retrieving context: {e}")
             return []
     
-    def get_llm_response(self, prompt: str, context: str = "") -> str:
-        """Get response from LM Studio LLM"""
+    def chat_with_lm_studio(self, message: str, context: List[str] = None) -> str:
+        """Send chat request to LM Studio"""
         try:
-            # Construct the full prompt
+            # Prepare context-enhanced prompt
+            prompt = message
             if context:
-                full_prompt = f"""You are a helpful KKH nursing assistant. Use the following context to answer the question accurately and concisely.
+                context_text = "\n\n".join(context)
+                prompt = f"""Based on the following KKH nursing information, please answer the question:
 
-Context: {context}
+Context:
+{context_text}
 
-Question: {prompt}
+Question: {message}
 
-Answer:"""
-            else:
-                full_prompt = f"""You are a helpful KKH nursing assistant. Please answer the following question:
-
-Question: {prompt}
-
-Answer:"""
+Please provide a helpful and accurate response based on the nursing information provided."""
             
-            # Make API call to LM Studio
+            # Prepare request payload
             payload = {
-                "model": LM_STUDIO_MODEL,
+                "model": "openhermes-2.5-mistral-7b",
                 "messages": [
-                    {"role": "user", "content": full_prompt}
+                    {
+                        "role": "system",
+                        "content": "You are a helpful nursing assistant specializing in KKH (KK Women's and Children's Hospital) procedures and pediatric care. Provide accurate, professional medical guidance."
+                    },
+                    {
+                        "role": "user",
+                        "content": prompt
+                    }
                 ],
-                "temperature": TEMPERATURE,
-                "max_tokens": MAX_TOKENS,
-                "stream": False
+                "temperature": 0.7,
+                "max_tokens": 500
             }
             
-            response = requests.post(LM_STUDIO_URL, json=payload, timeout=30)
+            # Send request to LM Studio
+            response = requests.post(
+                LM_STUDIO_URL,
+                headers={"Content-Type": "application/json"},
+                json=payload,
+                timeout=30
+            )
             
             if response.status_code == 200:
-                data = response.json()
-                return data['choices'][0]['message']['content'].strip()
+                result = response.json()
+                return result['choices'][0]['message']['content']
             else:
-                return f"Error: Unable to get response from LLM (Status: {response.status_code})"
+                return f"Error: Unable to connect to LM Studio (Status: {response.status_code})"
                 
         except requests.exceptions.ConnectionError:
-            return f"Error: Cannot connect to LM Studio. Please ensure it's running at http://{LM_STUDIO_HOST}:{LM_STUDIO_PORT}"
+            return "Error: Cannot connect to LM Studio. Please ensure LM Studio is running on http://localhost:1234"
         except Exception as e:
             return f"Error: {str(e)}"
-    
-    def generate_quiz_questions(self) -> List[Dict]:
-        """Generate quiz questions from PDF content"""
-        quiz_questions = [
-            {
-                "question": "What is the first step in pediatric CPR?",
-                "options": ["Check for responsiveness", "Open airway", "Start chest compressions", "Call for help"],
-                "correct": 0,
-                "explanation": "Always check for responsiveness first to determine if CPR is needed."
-            },
-            {
-                "question": "What is the normal heart rate range for a newborn?",
-                "options": ["60-80 bpm", "80-100 bpm", "100-160 bpm", "160-200 bpm"],
-                "correct": 2,
-                "explanation": "Normal newborn heart rate is 100-160 beats per minute."
-            },
-            {
-                "question": "Signs of dehydration in children include:",
-                "options": ["Dry mouth only", "Sunken eyes and dry mucous membranes", "Normal skin elasticity", "Increased urination"],
-                "correct": 1,
-                "explanation": "Sunken eyes and dry mucous membranes are key signs of dehydration."
-            },
-            {
-                "question": "What is the maintenance fluid requirement for a 10kg child?",
-                "options": ["500ml/day", "750ml/day", "1000ml/day", "1500ml/day"],
-                "correct": 2,
-                "explanation": "For children 10kg or less: 100ml/kg/day. So 10kg × 100ml = 1000ml/day."
-            },
-            {
-                "question": "During a seizure, the priority action is:",
-                "options": ["Restrain the child", "Put something in their mouth", "Protect from injury and time the seizure", "Give medications immediately"],
-                "correct": 2,
-                "explanation": "Protect the child from injury and time the seizure duration."
-            },
-            {
-                "question": "Normal respiratory rate for a 2-year-old is:",
-                "options": ["12-20 breaths/min", "20-30 breaths/min", "30-40 breaths/min", "40-50 breaths/min"],
-                "correct": 1,
-                "explanation": "Normal respiratory rate for toddlers (1-3 years) is 20-30 breaths per minute."
-            },
-            {
-                "question": "The compression-to-ventilation ratio for pediatric CPR (single rescuer) is:",
-                "options": ["15:2", "30:2", "5:1", "3:1"],
-                "correct": 1,
-                "explanation": "For single rescuer pediatric CPR, the ratio is 30:2 (compressions:ventilations)."
-            },
-            {
-                "question": "Fluid resuscitation for pediatric shock typically uses:",
-                "options": ["5ml/kg bolus", "10ml/kg bolus", "20ml/kg bolus", "50ml/kg bolus"],
-                "correct": 2,
-                "explanation": "Standard fluid resuscitation bolus is 20ml/kg of isotonic crystalloid."
-            },
-            {
-                "question": "Temperature indicating fever in children is:",
-                "options": ["37°C", "37.5°C", "38°C", "39°C"],
-                "correct": 2,
-                "explanation": "Fever is defined as temperature ≥38°C (100.4°F)."
-            },
-            {
-                "question": "Glasgow Coma Scale assesses:",
-                "options": ["Only eye opening", "Eye opening, verbal response, motor response", "Only verbal response", "Heart rate and blood pressure"],
-                "correct": 1,
-                "explanation": "GCS assesses three components: eye opening, verbal response, and motor response."
-            },
-            {
-                "question": "Normal blood pressure for a 5-year-old is approximately:",
-                "options": ["70/40 mmHg", "85/55 mmHg", "95/65 mmHg", "110/70 mmHg"],
-                "correct": 2,
-                "explanation": "Normal systolic BP for children: 90 + (2 × age in years). For 5yo: 90 + 10 = 100 systolic."
-            },
-            {
-                "question": "Capillary refill time should be less than:",
-                "options": ["1 second", "2 seconds", "3 seconds", "5 seconds"],
-                "correct": 1,
-                "explanation": "Normal capillary refill time is less than 2 seconds."
-            },
-            {
-                "question": "The most common cause of cardiac arrest in children is:",
-                "options": ["Heart attack", "Respiratory failure", "Trauma", "Poisoning"],
-                "correct": 1,
-                "explanation": "Unlike adults, pediatric cardiac arrest is most commonly due to respiratory failure."
-            },
-            {
-                "question": "Minimum urine output for children should be:",
-                "options": ["0.5ml/kg/hr", "1ml/kg/hr", "2ml/kg/hr", "3ml/kg/hr"],
-                "correct": 1,
-                "explanation": "Minimum adequate urine output for children is 1ml/kg/hour."
-            },
-            {
-                "question": "When should you call for emergency assistance during seizure?",
-                "options": ["Immediately when seizure starts", "After 5 minutes", "Only if child stops breathing", "Never during seizure"],
-                "correct": 1,
-                "explanation": "Call for emergency help if seizure lasts longer than 5 minutes or if it's the child's first seizure."
-            }
-        ]
-        return quiz_questions
 
 # Initialize chatbot
 @st.cache_resource
-def initialize_chatbot():
-    chatbot = KKHChatbot()
-    
-    # Load PDF and create embeddings
-    if os.path.exists(PDF_PATH):
-        with st.spinner("Loading and processing PDF content..."):
-            chunks = chatbot.load_pdf(PDF_PATH)
-            if chunks:
-                success = chatbot.create_embeddings(chunks)
-                if success:
-                    st.success("✅ PDF content loaded and indexed successfully!")
-                else:
-                    st.error("❌ Failed to create embeddings")
-            else:
-                st.error("❌ Failed to load PDF content")
-    else:
-        st.warning("⚠️ PDF file not found. Some features may be limited.")
-    
-    return chatbot
+def get_chatbot():
+    return KKHChatbot()
 
-def calculate_fluid_requirements(weight: float, age: int, situation: str) -> Dict:
-    """Calculate fluid requirements based on weight, age, and clinical situation"""
-    results = {}
-    
-    # Maintenance fluid calculation (Holliday-Segar method)
-    if weight <= 10:
-        maintenance = weight * 100  # 100ml/kg/day for first 10kg
-    elif weight <= 20:
-        maintenance = 1000 + (weight - 10) * 50  # 1000ml + 50ml/kg for next 10kg
-    else:
-        maintenance = 1500 + (weight - 20) * 20  # 1500ml + 20ml/kg for each kg > 20
-    
-    results["maintenance_daily"] = maintenance
-    results["maintenance_hourly"] = round(maintenance / 24, 1)
-    
-    # Situation-specific calculations
-    if situation == "Dehydration (5%)":
-        deficit = weight * 1000 * 0.05  # 5% of body weight
-        results["deficit"] = deficit
-        results["total_24h"] = maintenance + deficit
-    elif situation == "Dehydration (10%)":
-        deficit = weight * 1000 * 0.10  # 10% of body weight
-        results["deficit"] = deficit
-        results["total_24h"] = maintenance + deficit
-    elif situation == "Shock/Resuscitation":
-        bolus = weight * 20  # 20ml/kg bolus
-        results["bolus"] = bolus
-        results["total_24h"] = maintenance
-    else:  # Maintenance only
-        results["total_24h"] = maintenance
-    
-    return results
+chatbot = get_chatbot()
 
-def main():
-    # Header
-    st.markdown('<h1 class="main-header">🏥 KKH Nursing Chatbot</h1>', unsafe_allow_html=True)
+# Fluid Calculator Functions
+def calculate_maintenance_fluid(weight_kg: float, age_years: int) -> Dict:
+    """Calculate maintenance fluid using Holliday-Segar method"""
+    if weight_kg <= 10:
+        daily_ml = weight_kg * 100
+    elif weight_kg <= 20:
+        daily_ml = 1000 + (weight_kg - 10) * 50
+    else:
+        daily_ml = 1500 + (weight_kg - 20) * 20
     
-    # Initialize chatbot
-    chatbot = initialize_chatbot()
+    hourly_ml = daily_ml / 24
     
-    # Initialize session state
-    if 'chat_history' not in st.session_state:
-        st.session_state.chat_history = []
-    if 'quiz_started' not in st.session_state:
-        st.session_state.quiz_started = False
-    if 'current_question' not in st.session_state:
-        st.session_state.current_question = 0
-    if 'quiz_score' not in st.session_state:
-        st.session_state.quiz_score = 0
-    if 'quiz_answers' not in st.session_state:
-        st.session_state.quiz_answers = []
-    if 'quiz_questions' not in st.session_state:
-        st.session_state.quiz_questions = chatbot.generate_quiz_questions()
+    return {
+        "daily_ml": daily_ml,
+        "hourly_ml": round(hourly_ml, 1),
+        "description": "Maintenance fluid for normal daily needs"
+    }
+
+def calculate_dehydration_fluid(weight_kg: float, dehydration_percent: int) -> Dict:
+    """Calculate fluid replacement for dehydration"""
+    maintenance = calculate_maintenance_fluid(weight_kg, 0)
+    deficit_ml = weight_kg * 1000 * (dehydration_percent / 100)
     
-    # Sidebar navigation
-    with st.sidebar:
-        st.title("🏥 Navigation")
-        feature = st.selectbox(
-            "Choose a feature:",
-            ["🔍 Semantic Search Chat", "📋 Fluid Calculator", "❓ Knowledge Quiz", "ℹ️ About"]
-        )
+    # Replace deficit over 24 hours plus maintenance
+    total_daily = maintenance["daily_ml"] + deficit_ml
+    hourly_ml = total_daily / 24
     
-    # Main content based on selected feature
-    if feature == "🔍 Semantic Search Chat":
-        st.markdown('<div class="feature-card">', unsafe_allow_html=True)
-        st.header("🔍 Semantic Search Chatbot")
-        st.write("Ask questions about KKH nursing procedures and get AI-powered answers based on our knowledge base.")
-        
-        # Quick prompt buttons
-        st.subheader("💬 Quick Prompts")
-        col1, col2, col3, col4 = st.columns(4)
-        
-        quick_prompts = [
-            "Signs of dehydration",
-            "Paediatric CPR steps", 
-            "Seizure protocol",
-            "Fluid resuscitation"
-        ]
-        
-        with col1:
-            if st.button(quick_prompts[0]):
-                st.session_state.user_input = quick_prompts[0]
-        with col2:
-            if st.button(quick_prompts[1]):
-                st.session_state.user_input = quick_prompts[1]
-        with col3:
-            if st.button(quick_prompts[2]):
-                st.session_state.user_input = quick_prompts[2]
-        with col4:
-            if st.button(quick_prompts[3]):
-                st.session_state.user_input = quick_prompts[3]
-        
-        # Chat interface
-        user_input = st.text_input(
-            "Ask your question:", 
-            value=st.session_state.get('user_input', ''),
-            key='chat_input'
-        )
-        
-        if st.button("Send") and user_input:
-            with st.spinner("Searching knowledge base and generating response..."):
-                # Perform semantic search
-                relevant_chunks = chatbot.semantic_search(user_input)
-                context = "\n".join(relevant_chunks) if relevant_chunks else ""
+    return {
+        "daily_ml": round(total_daily),
+        "hourly_ml": round(hourly_ml, 1),
+        "deficit_ml": round(deficit_ml),
+        "maintenance_ml": maintenance["daily_ml"],
+        "description": f"Maintenance + {dehydration_percent}% dehydration replacement"
+    }
+
+def calculate_shock_fluid(weight_kg: float) -> Dict:
+    """Calculate fluid bolus for shock/resuscitation"""
+    bolus_ml = weight_kg * 20  # 20ml/kg bolus
+    
+    return {
+        "bolus_ml": bolus_ml,
+        "description": "Immediate bolus for shock/resuscitation (20ml/kg)",
+        "note": "May repeat up to 3 times. Reassess after each bolus."
+    }
+
+# Quiz Questions Database
+QUIZ_QUESTIONS = [
+    {
+        "question": "What is the first-line fluid for pediatric resuscitation?",
+        "options": ["5% Dextrose", "Normal Saline (0.9%)", "Half Normal Saline (0.45%)", "Lactated Ringer's"],
+        "correct": 1,
+        "explanation": "Normal Saline (0.9%) is the first-line fluid for pediatric resuscitation as it provides rapid volume expansion."
+    },
+    {
+        "question": "How much fluid bolus should be given for pediatric shock?",
+        "options": ["10ml/kg", "20ml/kg", "30ml/kg", "40ml/kg"],
+        "correct": 1,
+        "explanation": "20ml/kg is the standard fluid bolus for pediatric shock, which can be repeated up to 3 times."
+    },
+    {
+        "question": "What are early signs of dehydration in infants?",
+        "options": ["Sunken fontanelle", "Decreased skin turgor", "Dry mucous membranes", "All of the above"],
+        "correct": 3,
+        "explanation": "All listed signs are early indicators of dehydration in infants and should prompt immediate assessment."
+    },
+    {
+        "question": "At what heart rate should you be concerned in a 2-year-old child?",
+        "options": [">120 bpm", ">140 bpm", ">160 bpm", ">180 bpm"],
+        "correct": 3,
+        "explanation": "Heart rate >160 bpm in a 2-year-old child is concerning and requires immediate evaluation."
+    },
+    {
+        "question": "What is the compression to ventilation ratio for pediatric CPR (single rescuer)?",
+        "options": ["15:2", "30:2", "5:1", "10:2"],
+        "correct": 1,
+        "explanation": "For single rescuer pediatric CPR, the ratio is 30:2 (30 compressions to 2 ventilations)."
+    },
+    {
+        "question": "When should you refer a febrile child to a doctor immediately?",
+        "options": ["Temperature >38°C", "Temperature >39°C", "Any fever in infant <3 months", "Fever lasting >24 hours"],
+        "correct": 2,
+        "explanation": "Any fever in an infant less than 3 months old requires immediate medical evaluation due to immature immune system."
+    },
+    {
+        "question": "What is the normal respiratory rate for a 1-year-old child?",
+        "options": ["12-20 breaths/min", "20-30 breaths/min", "30-40 breaths/min", "40-60 breaths/min"],
+        "correct": 1,
+        "explanation": "Normal respiratory rate for a 1-year-old is 20-30 breaths per minute."
+    },
+    {
+        "question": "Which medication is contraindicated in children with Reye's syndrome risk?",
+        "options": ["Paracetamol", "Ibuprofen", "Aspirin", "Codeine"],
+        "correct": 2,
+        "explanation": "Aspirin is contraindicated in children due to the risk of Reye's syndrome, especially during viral illnesses."
+    },
+    {
+        "question": "What is the recommended depth of chest compressions for a child?",
+        "options": ["1/3 of chest diameter", "1/2 of chest diameter", "2 inches", "1 inch"],
+        "correct": 0,
+        "explanation": "Chest compressions should be at least 1/3 of the chest diameter for effective circulation in children."
+    },
+    {
+        "question": "At what weight should you use adult AED pads instead of pediatric pads?",
+        "options": [">15 kg", ">20 kg", ">25 kg", ">30 kg"],
+        "correct": 2,
+        "explanation": "Adult AED pads should be used for children weighing more than 25 kg or older than 8 years."
+    },
+    {
+        "question": "What is the most common cause of bradycardia in children?",
+        "options": ["Heart block", "Hypothermia", "Hypoxia", "Medication"],
+        "correct": 2,
+        "explanation": "Hypoxia is the most common cause of bradycardia in children, making airway management priority."
+    },
+    {
+        "question": "How often should vital signs be monitored in a critically ill child?",
+        "options": ["Every 30 minutes", "Every hour", "Every 15 minutes", "Continuously"],
+        "correct": 3,
+        "explanation": "Critically ill children require continuous monitoring of vital signs for early detection of deterioration."
+    },
+    {
+        "question": "What is the first intervention for a choking conscious child?",
+        "options": ["Back blows", "Chest thrusts", "Abdominal thrusts", "Finger sweep"],
+        "correct": 0,
+        "explanation": "For a conscious choking child, start with 5 back blows between the shoulder blades."
+    },
+    {
+        "question": "What glucose level indicates hypoglycemia in children?",
+        "options": ["<4.0 mmol/L", "<3.5 mmol/L", "<3.0 mmol/L", "<2.5 mmol/L"],
+        "correct": 2,
+        "explanation": "Blood glucose <3.0 mmol/L indicates hypoglycemia in children and requires immediate treatment."
+    },
+    {
+        "question": "What is the maximum time for attempting intubation in a child?",
+        "options": ["20 seconds", "30 seconds", "45 seconds", "60 seconds"],
+        "correct": 1,
+        "explanation": "Intubation attempts should not exceed 30 seconds in children to prevent hypoxia."
+    }
+]
+
+# Sidebar Navigation
+st.sidebar.title("🏥 KKH Nursing Chatbot")
+st.sidebar.markdown("---")
+
+page = st.sidebar.selectbox(
+    "Navigation",
+    ["💬 Chat", "💧 Fluid Calculator", "📋 Quiz", "ℹ️ About"]
+)
+
+# Main Content based on selected page
+if page == "💬 Chat":
+    st.markdown('<h1 class="main-header">💬 KKH Nursing Chat Assistant</h1>', unsafe_allow_html=True)
+    
+    # Quick prompt buttons
+    st.markdown("### Quick Prompts")
+    col1, col2, col3, col4 = st.columns(4)
+    
+    quick_prompts = [
+        "Signs of dehydration",
+        "Paediatric CPR steps", 
+        "Fluid resuscitation",
+        "When to refer to doctor"
+    ]
+    
+    for i, prompt in enumerate(quick_prompts):
+        with [col1, col2, col3, col4][i]:
+            if st.button(prompt, key=f"quick_{i}"):
+                # Add to chat history and process
+                st.session_state.chat_history.append({"role": "user", "content": prompt})
                 
-                # Get LLM response
-                response = chatbot.get_llm_response(user_input, context)
+                # Get relevant context
+                context = chatbot.retrieve_context(prompt)
                 
-                # Add to chat history
-                st.session_state.chat_history.append({
-                    "user": user_input,
-                    "bot": response,
-                    "timestamp": time.strftime("%H:%M:%S")
-                })
+                # Get response from LM Studio
+                response = chatbot.chat_with_lm_studio(prompt, context)
+                st.session_state.chat_history.append({"role": "assistant", "content": response})
                 
-                # Clear input
-                if 'user_input' in st.session_state:
-                    del st.session_state.user_input
-        
-        # Display chat history
-        if st.session_state.chat_history:
-            st.subheader("💬 Chat History")
-            for i, chat in enumerate(reversed(st.session_state.chat_history[-5:])):  # Show last 5 chats
-                with st.container():
-                    st.write(f"**👤 You ({chat['timestamp']}):** {chat['user']}")
-                    st.write(f"**🤖 KKH Assistant:** {chat['bot']}")
-                    st.divider()
-        
-        st.markdown('</div>', unsafe_allow_html=True)
-    
-    elif feature == "📋 Fluid Calculator":
-        st.markdown('<div class="feature-card">', unsafe_allow_html=True)
-        st.header("📋 Pediatric Fluid Calculator")
-        st.write("Calculate fluid requirements for pediatric patients based on weight, age, and clinical situation.")
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            weight = st.number_input("Weight (kg):", min_value=0.5, max_value=100.0, value=10.0, step=0.1)
-            age = st.number_input("Age (years):", min_value=0, max_value=18, value=2)
-        
-        with col2:
-            situation = st.selectbox(
-                "Clinical Situation:",
-                ["Maintenance", "Dehydration (5%)", "Dehydration (10%)", "Shock/Resuscitation"]
-            )
-        
-        if st.button("Calculate Fluid Requirements"):
-            results = calculate_fluid_requirements(weight, age, situation)
-            
-            st.markdown('<div class="fluid-calc-result">', unsafe_allow_html=True)
-            st.subheader("📊 Calculation Results")
-            
-            col1, col2 = st.columns(2)
-            with col1:
-                st.metric("Maintenance (24h)", f"{results['maintenance_daily']:.0f} ml")
-                st.metric("Maintenance (hourly)", f"{results['maintenance_hourly']:.1f} ml/hr")
-            
-            with col2:
-                if 'deficit' in results:
-                    st.metric("Fluid Deficit", f"{results['deficit']:.0f} ml")
-                if 'bolus' in results:
-                    st.metric("Resuscitation Bolus", f"{results['bolus']:.0f} ml")
-                st.metric("Total 24h Requirement", f"{results['total_24h']:.0f} ml")
-            
-            st.markdown('</div>', unsafe_allow_html=True)
-            
-            # Additional guidance
-            st.info("💡 **Clinical Notes:**\n"
-                   "- Monitor urine output (goal: >1ml/kg/hr)\n"
-                   "- Reassess hydration status regularly\n"
-                   "- Consider electrolyte replacement if indicated\n"
-                   "- Adjust based on ongoing losses")
-        
-        st.markdown('</div>', unsafe_allow_html=True)
-    
-    elif feature == "❓ Knowledge Quiz":
-        st.markdown('<div class="feature-card">', unsafe_allow_html=True)
-        st.header("❓ KKH Nursing Knowledge Quiz")
-        
-        if not st.session_state.quiz_started:
-            st.write("Test your knowledge with our comprehensive nursing quiz!")
-            st.write(f"📝 **{len(st.session_state.quiz_questions)} questions** covering pediatric nursing essentials")
-            
-            if st.button("🚀 Start Quiz"):
-                st.session_state.quiz_started = True
-                st.session_state.current_question = 0
-                st.session_state.quiz_score = 0
-                st.session_state.quiz_answers = []
                 st.rerun()
+    
+    # Chat input
+    user_input = st.text_input("Ask me anything about KKH nursing procedures:", key="chat_input")
+    
+    if st.button("Send") and user_input:
+        # Add user message to history
+        st.session_state.chat_history.append({"role": "user", "content": user_input})
         
+        # Get relevant context
+        with st.spinner("Searching KKH knowledge base..."):
+            context = chatbot.retrieve_context(user_input)
+        
+        # Get response from LM Studio
+        with st.spinner("Generating response..."):
+            response = chatbot.chat_with_lm_studio(user_input, context)
+            st.session_state.chat_history.append({"role": "assistant", "content": response})
+        
+        st.rerun()
+    
+    # Display chat history
+    st.markdown("### Conversation")
+    for message in st.session_state.chat_history:
+        if message["role"] == "user":
+            st.markdown(f'<div class="chat-message user-message"><strong>You:</strong> {message["content"]}</div>', unsafe_allow_html=True)
         else:
-            # Quiz in progress
-            questions = st.session_state.quiz_questions
-            current_q = st.session_state.current_question
+            st.markdown(f'<div class="chat-message bot-message"><strong>Assistant:</strong> {message["content"]}</div>', unsafe_allow_html=True)
+
+elif page == "💧 Fluid Calculator":
+    st.markdown('<h1 class="main-header">💧 Pediatric Fluid Calculator</h1>', unsafe_allow_html=True)
+    
+    st.markdown('<div class="fluid-calc-container">', unsafe_allow_html=True)
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        weight = st.number_input("Patient Weight (kg)", min_value=0.5, max_value=100.0, value=10.0, step=0.1)
+        age = st.number_input("Patient Age (years)", min_value=0, max_value=18, value=2)
+    
+    with col2:
+        situation = st.selectbox(
+            "Clinical Situation",
+            ["Maintenance", "Dehydration (5%)", "Dehydration (10%)", "Shock/Resuscitation"]
+        )
+    
+    if st.button("Calculate Fluid Requirements"):
+        if situation == "Maintenance":
+            result = calculate_maintenance_fluid(weight, age)
+            st.success(f"**{result['description']}**")
+            st.write(f"- Daily fluid: **{result['daily_ml']} ml**")
+            st.write(f"- Hourly rate: **{result['hourly_ml']} ml/hr**")
             
-            if current_q < len(questions):
-                question_data = questions[current_q]
-                
-                st.markdown('<div class="quiz-question">', unsafe_allow_html=True)
-                st.subheader(f"Question {current_q + 1} of {len(questions)}")
-                st.write(f"**{question_data['question']}**")
-                
-                # Answer options
-                user_answer = st.radio(
-                    "Select your answer:",
-                    question_data['options'],
-                    key=f"q_{current_q}"
-                )
-                
-                if st.button("Submit Answer"):
-                    correct_idx = question_data['correct']
-                    user_idx = question_data['options'].index(user_answer)
-                    is_correct = user_idx == correct_idx
-                    
-                    if is_correct:
-                        st.session_state.quiz_score += 1
-                        st.markdown(f'<div class="correct-answer">✅ Correct! {question_data["explanation"]}</div>', unsafe_allow_html=True)
-                    else:
-                        correct_answer = question_data['options'][correct_idx]
-                        st.markdown(f'<div class="incorrect-answer">❌ Incorrect. The correct answer is: {correct_answer}<br>{question_data["explanation"]}</div>', unsafe_allow_html=True)
-                    
-                    st.session_state.quiz_answers.append({
-                        'question': question_data['question'],
-                        'user_answer': user_answer,
-                        'correct_answer': question_data['options'][correct_idx],
-                        'is_correct': is_correct
-                    })
-                    
-                    time.sleep(2)  # Brief pause to show feedback
-                    st.session_state.current_question += 1
-                    st.rerun()
-                
-                st.markdown('</div>', unsafe_allow_html=True)
-                
-                # Progress bar
-                progress = (current_q + 1) / len(questions)
-                st.progress(progress)
+        elif "Dehydration" in situation:
+            percent = 5 if "5%" in situation else 10
+            result = calculate_dehydration_fluid(weight, percent)
+            st.success(f"**{result['description']}**")
+            st.write(f"- Maintenance: **{result['maintenance_ml']} ml/day**")
+            st.write(f"- Deficit replacement: **{result['deficit_ml']} ml**")
+            st.write(f"- Total daily fluid: **{result['daily_ml']} ml**")
+            st.write(f"- Hourly rate: **{result['hourly_ml']} ml/hr**")
             
+        elif "Shock" in situation:
+            result = calculate_shock_fluid(weight)
+            st.error(f"**{result['description']}**")
+            st.write(f"- Immediate bolus: **{result['bolus_ml']} ml**")
+            st.write(f"- {result['note']}")
+    
+    st.markdown('</div>', unsafe_allow_html=True)
+    
+    # Fluid calculation reference
+    st.markdown("### 📚 Reference Information")
+    st.markdown("""
+    **Holliday-Segar Method:**
+    - First 10 kg: 100 ml/kg/day
+    - Next 10 kg: 50 ml/kg/day  
+    - Each additional kg: 20 ml/kg/day
+    
+    **Dehydration Assessment:**
+    - Mild (5%): Slightly dry mucous membranes, decreased urine output
+    - Moderate (10%): Dry mucous membranes, sunken eyes, decreased skin turgor
+    - Severe (15%): All above plus sunken fontanelle, altered mental status
+    
+    **Shock Management:**
+    - 20 ml/kg normal saline bolus
+    - Reassess after each bolus
+    - Maximum 3 boluses (60 ml/kg total)
+    """)
+
+elif page == "📋 Quiz":
+    st.markdown('<h1 class="main-header">📋 KKH Nursing Knowledge Quiz</h1>', unsafe_allow_html=True)
+    
+    total_questions = len(QUIZ_QUESTIONS)
+    
+    # Quiz controls
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        if st.button("Start New Quiz"):
+            st.session_state.quiz_current = 0
+            st.session_state.quiz_score = 0
+            st.session_state.quiz_answers = {}
+            st.rerun()
+    
+    with col2:
+        st.write(f"Question {st.session_state.quiz_current + 1} of {total_questions}")
+    
+    with col3:
+        st.write(f"Score: {st.session_state.quiz_score}/{len(st.session_state.quiz_answers)}")
+    
+    if st.session_state.quiz_current < total_questions:
+        current_q = QUIZ_QUESTIONS[st.session_state.quiz_current]
+        
+        st.markdown(f'<div class="quiz-question">', unsafe_allow_html=True)
+        st.markdown(f"**Question {st.session_state.quiz_current + 1}:** {current_q['question']}")
+        
+        # Show options
+        user_answer = st.radio(
+            "Select your answer:",
+            current_q['options'],
+            key=f"quiz_{st.session_state.quiz_current}"
+        )
+        
+        if st.button("Submit Answer"):
+            selected_index = current_q['options'].index(user_answer)
+            is_correct = selected_index == current_q['correct']
+            
+            # Store answer
+            st.session_state.quiz_answers[st.session_state.quiz_current] = {
+                'selected': selected_index,
+                'correct': is_correct,
+                'explanation': current_q['explanation']
+            }
+            
+            if is_correct:
+                st.session_state.quiz_score += 1
+                st.markdown('<div class="correct-answer">✅ Correct!</div>', unsafe_allow_html=True)
             else:
-                # Quiz completed
-                st.subheader("🎉 Quiz Completed!")
-                score_percentage = (st.session_state.quiz_score / len(questions)) * 100
-                
-                col1, col2, col3 = st.columns(3)
-                with col1:
-                    st.metric("Score", f"{st.session_state.quiz_score}/{len(questions)}")
-                with col2:
-                    st.metric("Percentage", f"{score_percentage:.1f}%")
-                with col3:
-                    if score_percentage >= 80:
-                        st.success("🌟 Excellent!")
-                    elif score_percentage >= 70:
-                        st.info("👍 Good Job!")
-                    else:
-                        st.warning("📚 Keep Studying!")
-                
-                # Show review
-                with st.expander("📋 Review Your Answers"):
-                    for i, answer in enumerate(st.session_state.quiz_answers):
-                        if answer['is_correct']:
-                            st.success(f"Q{i+1}: ✅ {answer['question']}")
-                        else:
-                            st.error(f"Q{i+1}: ❌ {answer['question']}")
-                            st.write(f"Your answer: {answer['user_answer']}")
-                            st.write(f"Correct answer: {answer['correct_answer']}")
-                
-                if st.button("🔄 Restart Quiz"):
-                    st.session_state.quiz_started = False
-                    st.session_state.current_question = 0
-                    st.session_state.quiz_score = 0
-                    st.session_state.quiz_answers = []
-                    # Shuffle questions for variety
-                    random.shuffle(st.session_state.quiz_questions)
-                    st.rerun()
+                correct_answer = current_q['options'][current_q['correct']]
+                st.markdown(f'<div class="incorrect-answer">❌ Incorrect. The correct answer is: {correct_answer}</div>', unsafe_allow_html=True)
+            
+            st.write(f"**Explanation:** {current_q['explanation']}")
+            
+            # Move to next question
+            st.session_state.quiz_current += 1
+            time.sleep(2)
+            st.rerun()
         
         st.markdown('</div>', unsafe_allow_html=True)
     
-    elif feature == "ℹ️ About":
-        st.markdown('<div class="feature-card">', unsafe_allow_html=True)
-        st.header("ℹ️ About KKH Nursing Chatbot")
+    else:
+        # Quiz completed
+        st.success("🎉 Quiz Completed!")
+        final_score = st.session_state.quiz_score
+        percentage = (final_score / total_questions) * 100
         
-        st.write("""
-        ### 🏥 Welcome to the KKH Nursing Chatbot
+        st.markdown(f"### Final Score: {final_score}/{total_questions} ({percentage:.1f}%)")
         
-        This comprehensive nursing assistant is designed to support healthcare professionals with:
+        if percentage >= 80:
+            st.balloons()
+            st.success("Excellent work! You have a strong understanding of KKH nursing procedures.")
+        elif percentage >= 60:
+            st.warning("Good job! Consider reviewing the areas you missed.")
+        else:
+            st.error("You may want to review the KKH nursing materials and try again.")
         
-        **🔍 Semantic Search Chat**
-        - AI-powered responses based on KKH medical guidelines
-        - Natural language question processing
-        - Context-aware answers using embedded PDF knowledge
-        
-        **📋 Fluid Calculator**
-        - Holliday-Segar method for maintenance fluids
-        - Dehydration deficit calculations
-        - Shock resuscitation protocols
-        
-        **❓ Knowledge Quiz**
-        - 15 comprehensive nursing questions
-        - Immediate feedback and explanations
-        - Score tracking and review
-        
-        ### 🔧 Technical Details
-        - **LLM**: OpenHermes 2.5 Mistral 7B (via LM Studio)
-        - **Embeddings**: Multilingual E5 Large Instruct
-        - **Vector Search**: FAISS indexing
-        - **Framework**: Streamlit
-        
-        ### 📞 Support
-        For technical issues or content updates, please contact the development team.
-        """)
-        
-        st.markdown('</div>', unsafe_allow_html=True)
+        # Show review of answers
+        if st.button("Review Answers"):
+            for i, (q_idx, answer_data) in enumerate(st.session_state.quiz_answers.items()):
+                question = QUIZ_QUESTIONS[q_idx]
+                st.write(f"**Q{q_idx + 1}:** {question['question']}")
+                
+                if answer_data['correct']:
+                    st.success(f"✅ Your answer: {question['options'][answer_data['selected']]}")
+                else:
+                    st.error(f"❌ Your answer: {question['options'][answer_data['selected']]}")
+                    st.info(f"✅ Correct answer: {question['options'][question['correct']]}")
+                
+                st.write(f"*{answer_data['explanation']}*")
+                st.markdown("---")
 
-if __name__ == "__main__":
-    main()
+elif page == "ℹ️ About":
+    st.markdown('<h1 class="main-header">ℹ️ About KKH Nursing Chatbot</h1>', unsafe_allow_html=True)
+    
+    st.markdown("""
+    ## 🏥 KKH Nursing Chatbot
+    
+    This application is designed to assist nursing staff at KK Women's and Children's Hospital (KKH) 
+    with quick access to pediatric nursing procedures, calculations, and knowledge verification.
+    
+    ### 🔧 Features:
+    
+    #### 💬 **Intelligent Chat Assistant**
+    - Powered by LM Studio with openhermes-2.5-mistral-7b model
+    - Context-aware responses using KKH-specific nursing documentation
+    - Quick access to common procedures and protocols
+    
+    #### 💧 **Pediatric Fluid Calculator**
+    - Holliday-Segar method for maintenance fluids
+    - Dehydration replacement calculations (5% and 10%)
+    - Shock/resuscitation fluid bolus calculations
+    - Age and weight-based recommendations
+    
+    #### 📋 **Knowledge Assessment Quiz**
+    - 15 evidence-based multiple choice questions
+    - Immediate feedback with explanations
+    - Score tracking and performance review
+    - Topics covering pediatric emergencies, procedures, and protocols
+    
+    ### 🤖 **Technology Stack:**
+    - **Frontend:** Streamlit with custom CSS
+    - **AI Model:** LM Studio (openhermes-2.5-mistral-7b)
+    - **Embeddings:** intfloat/multilingual-e5-large-instruct
+    - **Vector Search:** FAISS
+    - **PDF Processing:** PyPDF2
+    - **Deployment:** Docker + Fly.io
+    
+    ### 🔒 **Privacy & Security:**
+    - All processing happens locally - no external API calls
+    - Patient data remains within your infrastructure
+    - Offline-capable design for reliable access
+    
+    ### ⚠️ **Important Disclaimer:**
+    This tool is designed to assist healthcare professionals and should not replace clinical judgment, 
+    hospital protocols, or direct physician consultation. Always follow your institution's guidelines 
+    and seek appropriate medical supervision when needed.
+    
+    ### 📞 **Support:**
+    For technical issues or content updates, please contact your IT department or system administrator.
+    
+    ---
+    *Version 1.0 | Built for KKH Nursing Staff*
+    """)
+
+# Footer
+st.markdown("---")
+st.markdown(
+    "<div style='text-align: center; color: #666; font-size: 0.8rem;'>"
+    "KKH Nursing Chatbot © 2025 | For KKH Staff Use Only"
+    "</div>",
+    unsafe_allow_html=True
+)

@@ -1,156 +1,161 @@
 #!/usr/bin/env python3
 """
 Test script for KKH Nursing Chatbot
-This script verifies that all dependencies are installed and basic functionality works.
+Verifies that all dependencies are installed and can be imported.
 """
 
 import sys
-import importlib
+import os
 
 def test_imports():
-    """Test if all required packages can be imported"""
-    required_packages = [
-        'streamlit',
-        'requests', 
-        'PyPDF2',
-        'faiss',
-        'numpy',
-        'sentence_transformers',
-        'torch',
-        'transformers'
+    """Test all required imports"""
+    print("🔍 Testing imports...")
+    
+    try:
+        import streamlit as st
+        print("✅ Streamlit imported successfully")
+    except ImportError as e:
+        print(f"❌ Failed to import Streamlit: {e}")
+        return False
+    
+    try:
+        import requests
+        print("✅ Requests imported successfully")
+    except ImportError as e:
+        print(f"❌ Failed to import Requests: {e}")
+        return False
+    
+    try:
+        import PyPDF2
+        print("✅ PyPDF2 imported successfully")
+    except ImportError as e:
+        print(f"❌ Failed to import PyPDF2: {e}")
+        return False
+    
+    try:
+        import sentence_transformers
+        print("✅ Sentence Transformers imported successfully")
+    except ImportError as e:
+        print(f"❌ Failed to import Sentence Transformers: {e}")
+        return False
+    
+    try:
+        import faiss
+        print("✅ FAISS imported successfully")
+    except ImportError as e:
+        print(f"❌ Failed to import FAISS: {e}")
+        return False
+    
+    try:
+        import numpy as np
+        print("✅ NumPy imported successfully")
+    except ImportError as e:
+        print(f"❌ Failed to import NumPy: {e}")
+        return False
+    
+    return True
+
+def test_file_structure():
+    """Test required files and directories"""
+    print("\n📁 Testing file structure...")
+    
+    required_files = [
+        "app.py",
+        "requirements.txt",
+        "Dockerfile",
+        "fly.toml"
     ]
     
-    print("Testing package imports...")
-    failed_imports = []
+    required_dirs = [
+        "data",
+        "logo"
+    ]
     
-    for package in required_packages:
-        try:
-            importlib.import_module(package)
-            print(f"✅ {package}")
-        except ImportError as e:
-            print(f"❌ {package}: {e}")
-            failed_imports.append(package)
+    all_good = True
     
-    return len(failed_imports) == 0
+    for file in required_files:
+        if os.path.exists(file):
+            print(f"✅ {file} exists")
+        else:
+            print(f"❌ {file} missing")
+            all_good = False
+    
+    for dir in required_dirs:
+        if os.path.exists(dir):
+            print(f"✅ {dir}/ directory exists")
+        else:
+            print(f"❌ {dir}/ directory missing")
+            all_good = False
+    
+    # Check for PDF file
+    pdf_path = "data/KKH Information file.pdf"
+    if os.path.exists(pdf_path):
+        print(f"✅ KKH Information file.pdf exists")
+    else:
+        print(f"⚠️  KKH Information file.pdf missing (required for full functionality)")
+    
+    return all_good
 
 def test_lm_studio_connection():
     """Test connection to LM Studio"""
-    import requests
-    from config import LM_STUDIO_HOST, LM_STUDIO_PORT
-    
-    url = f"http://{LM_STUDIO_HOST}:{LM_STUDIO_PORT}/v1/models"
-    
-    print(f"\nTesting LM Studio connection at {url}...")
+    print("\n🤖 Testing LM Studio connection...")
     
     try:
-        response = requests.get(url, timeout=5)
+        import requests
+        response = requests.get("http://localhost:1234/v1/models", timeout=5)
         if response.status_code == 200:
             print("✅ LM Studio is running and accessible")
             return True
         else:
-            print(f"❌ LM Studio returned status code: {response.status_code}")
+            print(f"⚠️  LM Studio returned status {response.status_code}")
             return False
     except requests.exceptions.ConnectionError:
-        print("❌ Cannot connect to LM Studio")
-        print("   Please ensure LM Studio is running and the server is started")
+        print("⚠️  LM Studio is not running or not accessible at http://localhost:1234")
+        print("   Please start LM Studio and load the openhermes-2.5-mistral-7b model")
         return False
     except Exception as e:
-        print(f"❌ Error connecting to LM Studio: {e}")
-        return False
-
-def test_pdf_file():
-    """Test if PDF file exists"""
-    import os
-    from config import PDF_PATH
-    
-    print(f"\nTesting PDF file at {PDF_PATH}...")
-    
-    if os.path.exists(PDF_PATH):
-        print("✅ PDF file found")
-        
-        # Test if file is readable
-        try:
-            with open(PDF_PATH, 'rb') as f:
-                f.read(100)  # Try to read first 100 bytes
-            print("✅ PDF file is readable")
-            return True
-        except Exception as e:
-            print(f"❌ Cannot read PDF file: {e}")
-            return False
-    else:
-        print(f"❌ PDF file not found at {PDF_PATH}")
-        return False
-
-def test_embedding_model():
-    """Test if embedding model can be loaded"""
-    print("\nTesting embedding model...")
-    
-    try:
-        from sentence_transformers import SentenceTransformer
-        from config import EMBEDDING_MODEL
-        
-        print(f"Loading {EMBEDDING_MODEL}...")
-        model = SentenceTransformer(EMBEDDING_MODEL)
-        
-        # Test encoding
-        test_text = "This is a test sentence."
-        embedding = model.encode([test_text])
-        
-        print(f"✅ Embedding model loaded successfully")
-        print(f"   Embedding dimension: {embedding.shape[1]}")
-        return True
-        
-    except Exception as e:
-        print(f"❌ Error loading embedding model: {e}")
-        print("   This may take time on first run to download the model")
+        print(f"❌ Error testing LM Studio connection: {e}")
         return False
 
 def main():
     """Run all tests"""
     print("🏥 KKH Nursing Chatbot - System Test")
-    print("=" * 50)
+    print("===================================")
     
-    tests = [
-        ("Package Imports", test_imports),
-        ("LM Studio Connection", test_lm_studio_connection),
-        ("PDF File", test_pdf_file),
-        ("Embedding Model", test_embedding_model)
-    ]
+    # Test imports
+    imports_ok = test_imports()
     
-    results = {}
+    # Test file structure
+    files_ok = test_file_structure()
     
-    for test_name, test_func in tests:
-        try:
-            results[test_name] = test_func()
-        except Exception as e:
-            print(f"❌ {test_name} failed with exception: {e}")
-            results[test_name] = False
+    # Test LM Studio connection
+    lm_studio_ok = test_lm_studio_connection()
     
-    print("\n" + "=" * 50)
-    print("Test Summary:")
+    print("\n📊 Test Summary:")
+    print("================")
     
-    all_passed = True
-    for test_name, passed in results.items():
-        status = "✅ PASS" if passed else "❌ FAIL"
-        print(f"  {test_name}: {status}")
-        if not passed:
-            all_passed = False
-    
-    print("\n" + "=" * 50)
-    
-    if all_passed:
-        print("🎉 All tests passed! The chatbot should work correctly.")
-        print("\nTo start the application, run:")
-        print("   streamlit run app.py")
+    if imports_ok:
+        print("✅ All Python dependencies are installed")
     else:
-        print("⚠️  Some tests failed. Please fix the issues before running the chatbot.")
-        print("\nCommon solutions:")
-        print("- Install missing packages: pip install -r requirements.txt")
-        print("- Start LM Studio and load the model")
-        print("- Ensure PDF file is in the correct location")
+        print("❌ Some Python dependencies are missing")
     
-    return all_passed
+    if files_ok:
+        print("✅ All required files are present")
+    else:
+        print("❌ Some required files are missing")
+    
+    if lm_studio_ok:
+        print("✅ LM Studio connection successful")
+    else:
+        print("⚠️  LM Studio not accessible (optional for testing)")
+    
+    print(f"\n🐍 Python version: {sys.version}")
+    print(f"📂 Working directory: {os.getcwd()}")
+    
+    if imports_ok and files_ok:
+        print("\n🚀 Ready to run! Execute: streamlit run app.py")
+    else:
+        print("\n🔧 Please fix the issues above before running the application")
 
 if __name__ == "__main__":
-    success = main()
-    sys.exit(0 if success else 1)
+    main()

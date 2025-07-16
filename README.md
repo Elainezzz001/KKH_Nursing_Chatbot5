@@ -1,151 +1,231 @@
-# KKH Nursing Chatbot
+# 🏥 KKH Nursing Chatbot
 
-A comprehensive Streamlit-based chatbot application designed for KKH nursing professionals, featuring AI-powered semantic search, fluid calculators, and knowledge quizzes.
+A comprehensive Streamlit application designed for KK Women's and Children's Hospital nursing staff, providing AI-powered assistance for pediatric nursing procedures, fluid calculations, and knowledge assessment.
 
-## Features
+## 🚀 Features
 
-### 🔍 Semantic Search Chatbot
-- Natural language question processing
-- AI-powered responses using OpenHermes 2.5 Mistral 7B via LM Studio
-- Context-aware answers based on embedded PDF knowledge
-- Quick prompt buttons for common queries
+### 💬 Intelligent Chat Assistant
+- **AI-Powered Responses**: Uses LM Studio with openhermes-2.5-mistral-7b model
+- **Context-Aware**: Retrieves relevant information from KKH nursing documentation
+- **Quick Prompts**: Pre-defined buttons for common queries:
+  - Signs of dehydration
+  - Paediatric CPR steps
+  - Fluid resuscitation protocols
+  - When to refer to doctor
 
-### 📋 Fluid Calculator
-- Holliday-Segar method for maintenance fluid calculations
-- Dehydration deficit calculations (5% and 10%)
-- Shock resuscitation protocols
-- Clinical guidance and monitoring tips
+### 💧 Pediatric Fluid Calculator
+- **Maintenance Fluids**: Holliday-Segar method calculations
+- **Dehydration Management**: 5% and 10% dehydration replacement
+- **Shock Resuscitation**: Emergency fluid bolus calculations
+- **Age/Weight Based**: Accurate dosing for pediatric patients
 
-### ❓ Knowledge Quiz
-- 15 comprehensive pediatric nursing questions
-- Immediate feedback with explanations
-- Score tracking and answer review
-- Restart functionality for practice
+### 📋 Knowledge Assessment Quiz
+- **15 Evidence-Based Questions**: Covering pediatric nursing essentials
+- **Immediate Feedback**: Explanations for each answer
+- **Score Tracking**: Performance monitoring and review
+- **Topics Include**: CPR, fluid management, emergency protocols, vital signs
 
-## Technical Stack
+### 🎨 Professional UI
+- **Modern Design**: Custom CSS with medical color scheme
+- **Responsive Layout**: Sidebar navigation and organized sections
+- **Chat Bubbles**: Clear conversation display
+- **Visual Feedback**: Color-coded quiz results and calculations
 
-- **Frontend**: Streamlit
-- **LLM**: OpenHermes 2.5 Mistral 7B (via LM Studio)
-- **Embeddings**: Multilingual E5 Large Instruct (SentenceTransformer)
-- **Vector Search**: FAISS indexing
-- **PDF Processing**: PyPDF2
+## 🔧 Technical Stack
 
-## Setup Instructions
+- **Frontend**: Streamlit with custom CSS
+- **AI Model**: LM Studio (openhermes-2.5-mistral-7b)
+- **Embeddings**: intfloat/multilingual-e5-large-instruct
+- **Vector Search**: FAISS for document retrieval
+- **PDF Processing**: PyPDF2 for content extraction
+- **Deployment**: Docker + Fly.io
+
+## 📋 Prerequisites
+
+1. **LM Studio Setup**:
+   - Install LM Studio from [lmstudio.ai](https://lmstudio.ai)
+   - Download the `openhermes-2.5-mistral-7b` model
+   - Start LM Studio server on `http://localhost:1234`
+
+2. **Python Environment**:
+   - Python 3.10 or higher
+   - pip package manager
+
+## 🚀 Local Development
+
+### 1. Clone and Setup
+```bash
+git clone <repository-url>
+cd "FYP Nursing Chatbot 5"
+pip install -r requirements.txt
+```
+
+### 2. Start LM Studio
+- Open LM Studio
+- Load the `openhermes-2.5-mistral-7b` model
+- Start the local server (default: http://localhost:1234)
+
+### 3. Run the Application
+```bash
+streamlit run app.py
+```
+
+The application will be available at `http://localhost:8501`
+
+## 🐳 Docker Deployment
+
+### Build and Run Locally
+```bash
+docker build -t kkh-nursing-chatbot .
+docker run -p 8080:8080 kkh-nursing-chatbot
+```
+
+**Note**: For Docker deployment, you'll need to set up LM Studio or an alternative model serving solution within the container or as a separate service.
+
+## ☁️ Fly.io Deployment
 
 ### Prerequisites
+```bash
+# Install Fly CLI
+curl -L https://fly.io/install.sh | sh
 
-1. **Python 3.8 or higher**
-2. **LM Studio** running locally at `http://192.168.75.1:1234`
-   - Install LM Studio from [lmstudio.ai](https://lmstudio.ai)
-   - Load the OpenHermes 2.5 Mistral 7B model
-   - Start the local server on port 1234
+# Login to Fly.io
+fly auth login
+```
 
-### Installation
+### Deploy
+```bash
+# Initialize (if not already done)
+fly launch
 
-1. **Clone or download this repository**
+# Deploy
+fly deploy
 
-2. **Install dependencies**:
-   ```bash
-   pip install -r requirements.txt
-   ```
+# Check status
+fly status
+```
 
-3. **Verify PDF file**:
-   - Ensure `KKH Information file.pdf` is in the `data/` folder
-   - The app will automatically process and index this PDF on startup
+### Environment Configuration
+The app expects LM Studio to be available at `http://localhost:1234`. For production deployment, you may need to:
 
-### Running the Application
+1. **Option A**: Include LM Studio in the container
+2. **Option B**: Use a cloud-based model API
+3. **Option C**: Deploy LM Studio as a separate service
 
-1. **Start LM Studio** and ensure the server is running at `http://192.168.75.1:1234`
+## 📁 File Structure
 
-2. **Run the Streamlit app**:
-   ```bash
-   streamlit run app.py
-   ```
+```
+FYP Nursing Chatbot 5/
+├── app.py                 # Main Streamlit application
+├── requirements.txt       # Python dependencies
+├── Dockerfile            # Docker configuration
+├── fly.toml              # Fly.io deployment config
+├── README.md             # This file
+├── data/
+│   └── KKH Information file.pdf  # Nursing documentation
+└── logo/
+    └── photo_2025-06-16_15-57-21.jpg  # App logo
+```
 
-3. **Open your browser** and navigate to `http://localhost:8501`
+## 🔒 Security & Privacy
 
-## Usage Guide
+- **Local Processing**: All AI processing happens locally
+- **No External APIs**: No patient data sent to third parties
+- **Offline Capable**: Works without internet connectivity
+- **Secure**: Patient information remains within your infrastructure
 
-### Semantic Search Chat
-1. Select "🔍 Semantic Search Chat" from the sidebar
-2. Use quick prompt buttons or type your own questions
-3. The app will search the PDF content and provide AI-generated responses
+## 📚 Usage Guide
+
+### Chat Assistant
+1. Select "💬 Chat" from the sidebar
+2. Use quick prompt buttons for common questions
+3. Type custom questions in the text input
+4. The AI will search KKH documentation and provide context-aware responses
 
 ### Fluid Calculator
-1. Select "📋 Fluid Calculator" from the sidebar
+1. Select "💧 Fluid Calculator" from the sidebar
 2. Enter patient weight and age
-3. Choose clinical situation (Maintenance, Dehydration, Shock)
-4. Click "Calculate Fluid Requirements" for results
+3. Choose clinical situation (maintenance, dehydration, shock)
+4. Click "Calculate" for dosing recommendations
 
 ### Knowledge Quiz
-1. Select "❓ Knowledge Quiz" from the sidebar
-2. Click "🚀 Start Quiz" to begin
-3. Answer questions and receive immediate feedback
-4. Review your answers at the end
-5. Use "🔄 Restart Quiz" to practice again
+1. Select "📋 Quiz" from the sidebar
+2. Click "Start New Quiz" to begin
+3. Answer multiple-choice questions
+4. Review explanations and final score
+5. Use "Review Answers" to see detailed feedback
 
-## Configuration
+## 🛠️ Customization
 
-### LM Studio Settings
-- **URL**: `http://192.168.75.1:1234/v1/chat/completions`
-- **Model**: `openhermes-2.5-mistral-7b`
-- **Temperature**: 0.7
-- **Max Tokens**: 500
+### Adding Quiz Questions
+Edit the `QUIZ_QUESTIONS` list in `app.py`:
+```python
+QUIZ_QUESTIONS.append({
+    "question": "Your question here?",
+    "options": ["Option A", "Option B", "Option C", "Option D"],
+    "correct": 0,  # Index of correct answer
+    "explanation": "Explanation of the correct answer"
+})
+```
 
-### Embedding Model
-- **Model**: `intfloat/multilingual-e5-large-instruct`
-- **Chunk Size**: 500 characters
-- **Search Results**: Top 3 relevant chunks
+### Updating Documentation
+Replace `data/KKH Information file.pdf` with updated nursing protocols. The app will automatically re-process the content.
 
-## Troubleshooting
+### Modifying Calculations
+Update the fluid calculation functions in `app.py`:
+- `calculate_maintenance_fluid()`
+- `calculate_dehydration_fluid()`
+- `calculate_shock_fluid()`
+
+## 🐛 Troubleshooting
 
 ### Common Issues
 
-1. **"Cannot connect to LM Studio"**
-   - Ensure LM Studio is running
-   - Check the IP address and port (192.168.75.1:1234)
-   - Verify the model is loaded in LM Studio
+1. **LM Studio Connection Error**:
+   - Ensure LM Studio is running on port 1234
+   - Check that the model is loaded and server is started
+   - Verify no firewall blocking the connection
 
-2. **"PDF file not found"**
-   - Ensure `KKH Information file.pdf` is in the `data/` folder
-   - Check file name matches exactly
+2. **PDF Loading Issues**:
+   - Ensure `KKH Information file.pdf` exists in the `data/` folder
+   - Check PDF is readable and not password-protected
+   - Verify sufficient memory for embedding processing
 
-3. **Slow embedding model loading**
-   - First-time loading may take several minutes
-   - Subsequent runs will be faster due to caching
+3. **Performance Issues**:
+   - Increase Docker memory allocation
+   - Use smaller embedding models if needed
+   - Consider chunking large PDFs differently
 
-4. **Memory issues**
-   - Ensure sufficient RAM (minimum 8GB recommended)
-   - Close other applications if needed
+### Logs and Debugging
+```bash
+# View Fly.io logs
+fly logs
 
-### Error Messages
+# Local debugging
+streamlit run app.py --logger.level=debug
+```
 
-- **Connection Error**: Check LM Studio is running and accessible
-- **Embedding Error**: Verify internet connection for model download
-- **PDF Error**: Check PDF file exists and is readable
+## 📞 Support
 
-## Customization
+For technical issues:
+1. Check the troubleshooting section above
+2. Review application logs
+3. Contact your IT department or system administrator
 
-### Adding New Quiz Questions
-Edit the `generate_quiz_questions()` method in the `KKHChatbot` class to add more questions.
+## ⚠️ Important Disclaimer
 
-### Modifying Quick Prompts
-Update the `quick_prompts` list in the semantic search section.
+This tool is designed to assist healthcare professionals and should not replace:
+- Clinical judgment
+- Hospital protocols
+- Direct physician consultation
+- Emergency procedures
 
-### Changing Styling
-Modify the CSS in the `st.markdown()` section at the top of the file.
+Always follow your institution's guidelines and seek appropriate medical supervision when needed.
 
-## System Requirements
+## 📄 License
 
-- **RAM**: 8GB minimum, 16GB recommended
-- **Storage**: 5GB free space for models
-- **Network**: Internet connection for initial model download
-- **OS**: Windows, macOS, or Linux
+This application is developed for internal use at KKH. Please ensure compliance with your institution's software usage policies.
 
-## Support
+---
 
-For technical issues or content updates, please contact the development team.
-
-## License
-
-This application is developed for KKH internal use. All medical content should be verified with current clinical guidelines.
+*KKH Nursing Chatbot v1.0 | Built for KKH Staff Use Only*

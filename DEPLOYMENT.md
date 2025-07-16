@@ -1,129 +1,243 @@
-# Render Deployment Guide for KKH Nursing Chatbot
+# 🚀 Fly.io Deployment Guide
 
-## 🚀 Quick Deploy to Render
+This guide walks you through deploying the KKH Nursing Chatbot to Fly.io.
 
-Your KKH Nursing Chatbot is now ready for deployment to Render using the included `render.yaml` configuration.
+## Prerequisites
 
-### 📋 Prerequisites
+1. **Fly.io Account**: Sign up at [fly.io](https://fly.io)
+2. **Fly CLI**: Install the Fly command-line tool
+3. **Docker**: Ensure Docker is installed and running
 
-1. **GitHub Repository:** ✅ Already set up at https://github.com/Elainezzz001/KKH_Nursing_Chatbot5.git
-2. **Render Account:** Create a free account at [render.com](https://render.com)
-3. **Cloud LM Studio:** ✅ Already configured at `35.247.130.124:1234`
+## Installation Steps
 
-### 🛠️ Deployment Steps
+### 1. Install Fly CLI
 
-#### Option 1: Deploy via Render Dashboard (Recommended)
-
-1. **Connect GitHub to Render:**
-   - Go to [render.com](https://render.com) and sign up/login
-   - Click "New +" → "Web Service"
-   - Connect your GitHub account
-   - Select the repository: `Elainezzz001/KKH_Nursing_Chatbot5`
-
-2. **Configure Service:**
-   - **Name:** `kkh-nursing-chatbot`
-   - **Branch:** `main`
-   - **Runtime:** `Python`
-   - **Build Command:** `pip install -r requirements.txt`
-   - **Start Command:** `streamlit run app.py --server.port $PORT --server.address 0.0.0.0`
-
-3. **Environment Variables:**
-   ```
-   PYTHON_VERSION=3.10
-   STREAMLIT_SERVER_HEADLESS=true
-   STREAMLIT_BROWSER_GATHER_USAGE_STATS=false
-   ```
-
-4. **Deploy:**
-   - Click "Create Web Service"
-   - Wait for deployment (5-10 minutes)
-   - Your app will be available at: `https://kkh-nursing-chatbot.onrender.com`
-
-#### Option 2: Deploy via render.yaml (Automatic)
-
-1. **Fork and Deploy:**
-   - Render will automatically detect the `render.yaml` file
-   - All configurations are pre-set
-   - Just click "Deploy" and wait for completion
-
-### 🔧 Configuration Details
-
-The `render.yaml` file includes:
-
-```yaml
-services:
-  - type: web
-    name: kkh-nursing-chatbot
-    env: python
-    plan: free
-    buildCommand: pip install -r requirements.txt
-    startCommand: streamlit run app.py --server.port $PORT --server.address 0.0.0.0
-    envVars:
-      - key: PYTHON_VERSION
-        value: "3.10"
-      - key: STREAMLIT_SERVER_HEADLESS
-        value: "true"
-      - key: STREAMLIT_BROWSER_GATHER_USAGE_STATS
-        value: "false"
+**Windows (PowerShell):**
+```powershell
+iwr https://fly.io/install.ps1 -useb | iex
 ```
 
-### 📊 Expected Deployment Features
+**macOS/Linux:**
+```bash
+curl -L https://fly.io/install.sh | sh
+```
 
-- ✅ **Free Tier:** No cost for basic usage
-- ✅ **Auto-Deploy:** Automatic updates when you push to GitHub
-- ✅ **HTTPS:** Secure connection included
-- ✅ **Custom Domain:** Available if needed
-- ✅ **Environment Variables:** Pre-configured for Streamlit
+### 2. Login to Fly.io
+```bash
+fly auth login
+```
 
-### 🔍 Testing Your Deployment
+### 3. Initialize the App (if not already done)
+```bash
+cd "c:\FYP Nursing Chatbot 5"
+fly launch
+```
 
-Once deployed, test these features:
+When prompted:
+- Choose your app name (or use "kkh-nursing-chatbot")
+- Select your preferred region (Singapore: sin)
+- Choose not to set up PostgreSQL database
+- Choose not to deploy immediately
 
-1. **Semantic Search Chat:**
-   - Try quick prompts: "Signs of dehydration", "Paediatric CPR steps"
-   - Ask custom questions about nursing procedures
+### 4. Configure the App
 
-2. **Fluid Calculator:**
-   - Enter patient weight and age
-   - Test different clinical situations
+The `fly.toml` file is already configured with:
+- **Port**: 8080 (Streamlit default)
+- **Memory**: 2GB (for ML models)
+- **Region**: Singapore (sin)
+- **Health checks**: Streamlit health endpoint
 
-3. **Knowledge Quiz:**
-   - Start the 15-question quiz
-   - Verify scoring and feedback work correctly
+### 5. Deploy the Application
+```bash
+fly deploy
+```
 
-### 🐛 Troubleshooting
+### 6. Check Deployment Status
+```bash
+fly status
+fly logs
+```
 
-**Common Issues:**
+### 7. Open the Application
+```bash
+fly open
+```
 
-1. **Build Failed:**
-   - Check that all dependencies in `requirements.txt` are compatible
-   - Verify Python version (3.10) is supported
+## Important Notes for Production
 
-2. **App Won't Start:**
-   - Ensure the start command includes `--server.port $PORT --server.address 0.0.0.0`
-   - Check logs in Render dashboard
+### 🤖 Model Serving Considerations
 
-3. **LM Studio Connection Issues:**
-   - Verify cloud server at `35.247.130.124:1234` is running
-   - Check firewall settings allow inbound connections
+The current setup expects LM Studio to be running locally. For production deployment, you have several options:
 
-4. **PDF Loading Issues:**
-   - Ensure `data/KKH Information file.pdf` is included in the repository
-   - Check file permissions and accessibility
+#### Option A: Include Model in Container
+```dockerfile
+# Add to Dockerfile
+RUN pip install transformers torch
+COPY models/ /app/models/
+```
 
-### 📞 Support
+#### Option B: Use Cloud Model APIs
+Update `app.py` to use cloud-based APIs like:
+- Azure OpenAI
+- AWS Bedrock
+- Google Vertex AI
 
-- **Render Documentation:** [docs.render.com](https://docs.render.com)
-- **Streamlit on Render:** [docs.streamlit.io/deploy/render](https://docs.streamlit.io/deploy/render)
-- **GitHub Repository:** https://github.com/Elainezzz001/KKH_Nursing_Chatbot5.git
+#### Option C: Separate Model Service
+Deploy LM Studio or similar as a separate Fly.io app and update the URL.
 
-### 🎉 Post-Deployment
+### 🔧 Environment Variables
 
-After successful deployment:
+Set sensitive configuration via Fly secrets:
+```bash
+fly secrets set MODEL_URL=http://your-model-service.fly.dev
+fly secrets set API_KEY=your-secret-key
+```
 
-1. **Share the URL** with your team
-2. **Test all features** thoroughly
-3. **Monitor usage** via Render dashboard
-4. **Set up auto-deploy** for future updates
+### 📊 Monitoring
 
-Your KKH Nursing Chatbot will be accessible worldwide at your Render URL! 🌍🏥
+Enable Fly.io monitoring:
+```bash
+fly dashboard
+```
+
+Monitor:
+- CPU and memory usage
+- Response times
+- Error rates
+- Health check status
+
+### 🔄 Auto-scaling
+
+Configure auto-scaling in `fly.toml`:
+```toml
+[machine]
+  memory = "2gb"
+  cpu_kind = "shared"
+  cpus = 2
+
+[http_service]
+  min_machines_running = 1
+  max_machines_running = 5
+```
+
+### 💾 Persistent Storage
+
+If you need to store data:
+```bash
+fly volumes create data_volume --size 10gb
+```
+
+Update `fly.toml`:
+```toml
+[mounts]
+  source = "data_volume"
+  destination = "/app/data"
+```
+
+## Troubleshooting
+
+### Common Issues
+
+1. **Out of Memory**:
+   - Increase memory in `fly.toml`
+   - Use smaller ML models
+   - Optimize embedding processing
+
+2. **Slow Startup**:
+   - Pre-download models in Dockerfile
+   - Use model caching
+   - Optimize image size
+
+3. **Connection Timeouts**:
+   - Increase health check timeouts
+   - Optimize app startup time
+   - Use proper logging
+
+### Debugging Commands
+
+```bash
+# View logs
+fly logs --app kkh-nursing-chatbot
+
+# SSH into running machine
+fly ssh console
+
+# Check machine status
+fly machine list
+
+# Scale machines
+fly machine clone
+```
+
+### Performance Optimization
+
+1. **Docker Image Size**:
+   - Use multi-stage builds
+   - Remove unnecessary dependencies
+   - Use smaller base images
+
+2. **ML Model Loading**:
+   - Cache models in Docker layer
+   - Use model quantization
+   - Lazy load models
+
+3. **Streamlit Performance**:
+   - Use `@st.cache_resource` for expensive operations
+   - Optimize PDF processing
+   - Implement pagination for large datasets
+
+## Security Considerations
+
+1. **Secrets Management**:
+   ```bash
+   fly secrets set SECRET_KEY=your-secret-key
+   fly secrets set DATABASE_URL=your-db-url
+   ```
+
+2. **Network Security**:
+   - Use HTTPS (automatically enabled)
+   - Configure IP restrictions if needed
+   - Implement authentication if required
+
+3. **Data Privacy**:
+   - Ensure HIPAA compliance if handling patient data
+   - Use encrypted storage
+   - Implement audit logging
+
+## Cost Optimization
+
+1. **Machine Sizing**:
+   - Start with smaller machines
+   - Scale based on actual usage
+   - Use auto-stop for development
+
+2. **Regional Deployment**:
+   - Deploy close to users
+   - Consider data residency requirements
+
+3. **Monitoring Costs**:
+   ```bash
+   fly dashboard
+   ```
+   Check usage in the billing section.
+
+## Backup and Recovery
+
+1. **Code Backup**:
+   - Use Git for version control
+   - Regular commits and tags
+
+2. **Data Backup**:
+   - Export volumes regularly
+   - Document restoration procedures
+
+3. **Configuration Backup**:
+   - Save `fly.toml` and secrets
+   - Document environment setup
+
+---
+
+**Need Help?**
+- Fly.io Documentation: https://fly.io/docs/
+- Community Forum: https://community.fly.io/
+- Support: https://fly.io/support/

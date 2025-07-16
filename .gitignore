@@ -21,22 +21,6 @@ wheels/
 *.egg
 MANIFEST
 
-# PyInstaller
-*.manifest
-*.spec
-
-# Unit test / coverage reports
-htmlcov/
-.tox/
-.coverage
-.coverage.*
-.cache
-nosetests.xml
-coverage.xml
-*.cover
-.hypothesis/
-.pytest_cache/
-
 # Virtual environments
 .env
 .venv
@@ -45,9 +29,6 @@ venv/
 ENV/
 env.bak/
 venv.bak/
-
-# Streamlit
-.streamlit/
 
 # IDEs
 .vscode/
@@ -65,25 +46,24 @@ venv.bak/
 ehthumbs.db
 Thumbs.db
 
-# Model cache and temporary files
-.cache/
-temp/
-tmp/
+# Streamlit
+.streamlit/
 
-# Log files
+# Model files (if downloading models locally)
+models/
+*.bin
+*.safetensors
+
+# Logs
 *.log
+logs/
 
-# Jupyter Notebook
-.ipynb_checkpoints
+# Temporary files
+*.tmp
+*.temp
 
-# pyenv
-.python-version
+# Docker
+.dockerignore
 
-# pipenv
-Pipfile.lock
-
-# conda
-.conda/
-
-# Hugging Face model cache (optional - uncomment if you want to exclude cached models)
-# .cache/huggingface/
+# Fly.io
+.fly/
