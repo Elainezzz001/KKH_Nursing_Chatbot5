@@ -1,7 +1,7 @@
 # Configuration file for KKH Nursing Chatbot
 
 # LM Studio Configuration
-LM_STUDIO_HOST = "192.168.75.1"
+LM_STUDIO_HOST = "35.247.130.124"
 LM_STUDIO_PORT = "1234"
 LM_STUDIO_MODEL = "openhermes-2.5-mistral-7b"
 
