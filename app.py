@@ -218,14 +218,18 @@ class KKHChatbot:
             prompt = message
             if context:
                 context_text = "\n\n".join(context)
-                prompt = f"""Based on the following KKH nursing information, please answer the question:
+                prompt = f"""You are a nursing assistant specialized in pediatric care at KK Women's and Children's Hospital (KKH).
 
-Context:
+Use the following clinical documentation to answer the user's question as accurately as possible.
+
+========
 {context_text}
+========
 
 Question: {message}
 
-Please provide a helpful and accurate response based on the nursing information provided."""
+Answer in a clear and professional tone using only the above nursing documentation. If the answer cannot be found, state that it is not covered in the current reference.
+"""
             
             # Prepare request payload for OpenRouter
             payload = {
