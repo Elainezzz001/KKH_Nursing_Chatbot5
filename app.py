@@ -155,38 +155,26 @@ class KKHChatbot:
                 st.error(f"Error loading embeddings: {e}")
     
     def extract_pdf_content(self, pdf_path: str) -> List[str]:
-        """Extract structured QA-style chunks from PDF"""
+        """Extract text content from PDF and split into chunks"""
         try:
             with open(pdf_path, 'rb') as file:
                 pdf_reader = PyPDF2.PdfReader(file)
-                raw_text = ""
+                text = ""
                 for page in pdf_reader.pages:
-                    text = page.extract_text()
-                    if text:
-                        raw_text += text + "\n"
-
-            # Split by line and group into sections based on empty lines or headers
-            lines = raw_text.splitlines()
+                    text += page.extract_text()
+            
+            # Split into chunks (approximately 500 characters each)
             chunks = []
-            current_chunk = ""
-            for line in lines:
-                line = line.strip()
-                if not line:
-                    if current_chunk:
-                        chunks.append(current_chunk.strip())
-                        current_chunk = ""
-            else:
-                current_chunk += " " + line
-
-            # Add last chunk
-            if current_chunk:
-                chunks.append(current_chunk.strip())
-
-            return [c for c in chunks if len(c) > 50]
+            chunk_size = 500
+            for i in range(0, len(text), chunk_size):
+                chunk = text[i:i + chunk_size]
+                if len(chunk.strip()) > 50:  # Only include substantial chunks
+                    chunks.append(chunk.strip())
+            
+            return chunks
         except Exception as e:
             st.error(f"Error extracting PDF content: {e}")
-        return []
-
+            return []
     
     def retrieve_context(self, query: str, top_k: int = 3) -> List[str]:
         """Retrieve most relevant context chunks for a query"""
@@ -218,18 +206,14 @@ class KKHChatbot:
             prompt = message
             if context:
                 context_text = "\n\n".join(context)
-                prompt = f"""You are a nursing assistant specialized in pediatric care at KK Women's and Children's Hospital (KKH).
+                prompt = f"""Based on the following KKH nursing information, please answer the question:
 
-Use the following clinical documentation to answer the user's question as accurately as possible.
-
-========
+Context:
 {context_text}
-========
 
 Question: {message}
 
-Answer in a clear and professional tone using only the above nursing documentation. If the answer cannot be found, state that it is not covered in the current reference.
-"""
+Please provide a helpful and accurate response based on the nursing information provided."""
             
             # Prepare request payload for OpenRouter
             payload = {
