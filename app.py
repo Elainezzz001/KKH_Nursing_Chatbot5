@@ -155,26 +155,38 @@ class KKHChatbot:
                 st.error(f"Error loading embeddings: {e}")
     
     def extract_pdf_content(self, pdf_path: str) -> List[str]:
-        """Extract text content from PDF and split into chunks"""
+        """Extract structured QA-style chunks from PDF"""
         try:
             with open(pdf_path, 'rb') as file:
                 pdf_reader = PyPDF2.PdfReader(file)
-                text = ""
+                raw_text = ""
                 for page in pdf_reader.pages:
-                    text += page.extract_text()
-            
-            # Split into chunks (approximately 500 characters each)
+                    text = page.extract_text()
+                    if text:
+                        raw_text += text + "\n"
+
+            # Split by line and group into sections based on empty lines or headers
+            lines = raw_text.splitlines()
             chunks = []
-            chunk_size = 500
-            for i in range(0, len(text), chunk_size):
-                chunk = text[i:i + chunk_size]
-                if len(chunk.strip()) > 50:  # Only include substantial chunks
-                    chunks.append(chunk.strip())
-            
-            return chunks
+            current_chunk = ""
+            for line in lines:
+                line = line.strip()
+                if not line:
+                    if current_chunk:
+                        chunks.append(current_chunk.strip())
+                        current_chunk = ""
+            else:
+                current_chunk += " " + line
+
+            # Add last chunk
+            if current_chunk:
+                chunks.append(current_chunk.strip())
+
+            return [c for c in chunks if len(c) > 50]
         except Exception as e:
             st.error(f"Error extracting PDF content: {e}")
-            return []
+        return []
+
     
     def retrieve_context(self, query: str, top_k: int = 3) -> List[str]:
         """Retrieve most relevant context chunks for a query"""
