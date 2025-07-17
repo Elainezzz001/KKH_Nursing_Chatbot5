@@ -155,81 +155,194 @@ class KKHChatbot:
                 st.error(f"Error loading embeddings: {e}")
     
     def extract_pdf_content(self, pdf_path: str) -> List[str]:
-        """Extract text content from PDF and split into chunks"""
+        """Extract text content from PDF and split into QA-style chunks"""
         try:
             with open(pdf_path, 'rb') as file:
                 pdf_reader = PyPDF2.PdfReader(file)
                 text = ""
                 for page in pdf_reader.pages:
-                    text += page.extract_text()
+                    text += page.extract_text() + "\n"
             
-            # Split into chunks (approximately 500 characters each)
-            chunks = []
-            chunk_size = 500
-            for i in range(0, len(text), chunk_size):
-                chunk = text[i:i + chunk_size]
-                if len(chunk.strip()) > 50:  # Only include substantial chunks
-                    chunks.append(chunk.strip())
+            # Split into QA-style chunks based on structure
+            chunks = self._create_qa_chunks(text)
             
             return chunks
         except Exception as e:
             st.error(f"Error extracting PDF content: {e}")
             return []
     
+    def _create_qa_chunks(self, text: str) -> List[str]:
+        """Create QA-style chunks from PDF text"""
+        chunks = []
+        
+        # Split by double newlines (paragraph breaks) first
+        paragraphs = text.split('\n\n')
+        
+        current_chunk = ""
+        for paragraph in paragraphs:
+            paragraph = paragraph.strip()
+            if not paragraph:
+                continue
+                
+            # Check if this looks like a header/title (short line, often capitalized)
+            if len(paragraph) < 100 and (paragraph.isupper() or paragraph.istitle()):
+                # If we have a current chunk, save it
+                if current_chunk.strip():
+                    chunks.append(current_chunk.strip())
+                # Start new chunk with header
+                current_chunk = paragraph + "\n"
+            else:
+                # Add paragraph to current chunk
+                current_chunk += paragraph + "\n"
+                
+                # If chunk is getting large (800+ chars), save it
+                if len(current_chunk) > 800:
+                    chunks.append(current_chunk.strip())
+                    current_chunk = ""
+        
+        # Add final chunk if exists
+        if current_chunk.strip():
+            chunks.append(current_chunk.strip())
+        
+        # Also create line-by-line chunks for specific facts
+        lines = text.split('\n')
+        for i, line in enumerate(lines):
+            line = line.strip()
+            if not line:
+                continue
+                
+            # Look for lines that contain key medical information
+            if any(keyword in line.lower() for keyword in [
+                'normal', 'range', 'bpm', 'beats', 'mmhg', 'temperature', 
+                'respiratory rate', 'heart rate', 'blood pressure', 'vital signs',
+                'contraindicated', 'dosage', 'mg/kg', 'ml/kg', 'indication'
+            ]):
+                # Include context (previous and next lines if available)
+                context_chunk = ""
+                start_idx = max(0, i-1)
+                end_idx = min(len(lines), i+2)
+                
+                for j in range(start_idx, end_idx):
+                    if lines[j].strip():
+                        context_chunk += lines[j].strip() + "\n"
+                
+                if len(context_chunk.strip()) > 20:
+                    chunks.append(context_chunk.strip())
+        
+        # Filter out very short or repetitive chunks
+        filtered_chunks = []
+        for chunk in chunks:
+            if len(chunk) > 30 and chunk not in filtered_chunks:
+                filtered_chunks.append(chunk)
+        
+        return filtered_chunks
+    
     def retrieve_context(self, query: str, top_k: int = 3) -> List[str]:
-        """Retrieve most relevant context chunks for a query"""
+        """Retrieve most relevant context chunks for a query with improved matching"""
         if not self.embedding_model or not self.faiss_index:
             return []
         
         try:
-            # Encode query
-            query_embedding = self.embedding_model.encode([query])
+            # Enhance query with medical synonyms for better matching
+            enhanced_query = self._enhance_medical_query(query)
+            
+            # Encode enhanced query
+            query_embedding = self.embedding_model.encode([enhanced_query])
             
             # Search similar chunks
             scores, indices = self.faiss_index.search(query_embedding.astype('float32'), top_k)
             
-            # Return relevant chunks
+            # Return relevant chunks, sorted by relevance score
             relevant_chunks = []
-            for idx in indices[0]:
+            for i, idx in enumerate(indices[0]):
                 if idx < len(self.text_chunks):
-                    relevant_chunks.append(self.text_chunks[idx])
+                    chunk = self.text_chunks[idx]
+                    # Only include chunks with reasonable relevance
+                    if scores[0][i] > 0.1:  # Similarity threshold
+                        relevant_chunks.append(chunk)
             
             return relevant_chunks
         except Exception as e:
             st.error(f"Error retrieving context: {e}")
             return []
     
+    def _enhance_medical_query(self, query: str) -> str:
+        """Enhance query with medical synonyms for better context matching"""
+        query_lower = query.lower()
+        
+        # Medical term mappings for better matching
+        enhancements = {
+            'heart rate': 'heart rate pulse bpm beats per minute cardiac',
+            'pulse': 'heart rate pulse bpm beats per minute cardiac',
+            'bpm': 'heart rate pulse bpm beats per minute cardiac',
+            'respiratory rate': 'respiratory rate breathing respiration breaths per minute',
+            'breathing': 'respiratory rate breathing respiration breaths per minute',
+            'blood pressure': 'blood pressure bp systolic diastolic mmhg',
+            'temperature': 'temperature fever pyrexia hyperthermia celsius fahrenheit',
+            'dehydration': 'dehydration fluid loss hypovolemia dry mucous membranes',
+            'cpr': 'cpr cardiopulmonary resuscitation chest compressions',
+            'neonate': 'neonate newborn infant baby pediatric',
+            'infant': 'infant baby neonate pediatric child',
+            'child': 'child pediatric infant baby toddler',
+            'normal': 'normal range reference values vital signs',
+        }
+        
+        enhanced = query
+        for term, expansion in enhancements.items():
+            if term in query_lower:
+                enhanced += f" {expansion}"
+        
+        return enhanced
+    
     def chat_with_lm_studio(self, message: str, context: List[str] = None) -> str:
-        """Send chat request to OpenRouter API or provide fallback response"""
+        """Send chat request to OpenRouter API with improved prompt formatting"""
         try:
-            # Prepare context-enhanced prompt
-            prompt = message
+            # Prepare enhanced prompt for direct answers
             if context:
-                context_text = "\n\n".join(context)
-                prompt = f"""Based on the following KKH nursing information, please answer the question:
+                # Select the most relevant context (limit to top 2 for conciseness)
+                best_context = "\n\n".join(context[:2])
+                
+                # Create a focused prompt for direct answers
+                prompt = f"""You are a KKH nursing assistant. Use the following medical information to answer the question directly and concisely.
 
-Context:
-{context_text}
+========== KKH NURSING INFORMATION ==========
+{best_context}
+=============================================
 
 Question: {message}
 
-Please provide a helpful and accurate response based on the nursing information provided."""
-            
+Instructions:
+- Give a direct, professional answer based ONLY on the provided information
+- Be concise and specific (2-3 sentences maximum)
+- Include specific values, ranges, or procedures when mentioned
+- If the information isn't in the context, say "This information is not available in the current KKH documentation"
+- Use professional medical terminology appropriate for nursing staff
+
+Answer:"""
+            else:
+                # Fallback prompt when no context is available
+                prompt = f"""You are a KKH nursing assistant specializing in pediatric care. Answer this question professionally and concisely:
+
+Question: {message}
+
+Provide a brief, professional answer (2-3 sentences) based on standard pediatric nursing practices. If you're unsure about KKH-specific protocols, recommend consulting hospital guidelines."""
+
             # Prepare request payload for OpenRouter
             payload = {
                 "model": "openai/gpt-3.5-turbo",
                 "messages": [
                     {
                         "role": "system",
-                        "content": "You are a helpful nursing assistant specializing in KKH (KK Women's and Children's Hospital) procedures and pediatric care. Provide accurate, professional medical guidance."
+                        "content": "You are a professional nursing assistant at KK Women's and Children's Hospital (KKH). Provide clear, concise, and accurate medical guidance. Always be direct and specific in your responses."
                     },
                     {
                         "role": "user",
                         "content": prompt
                     }
                 ],
-                "temperature": 0.7,
-                "max_tokens": 500
+                "temperature": 0.3,  # Lower temperature for more focused answers
+                "max_tokens": 300,   # Reduced for conciseness
+                "top_p": 0.9
             }
             
             # Send request to OpenRouter API
@@ -247,7 +360,13 @@ Please provide a helpful and accurate response based on the nursing information 
             
             if response.status_code == 200:
                 result = response.json()
-                return result['choices'][0]['message']['content']
+                answer = result['choices'][0]['message']['content'].strip()
+                
+                # Clean up the answer if it starts with "Answer:" or similar
+                if answer.lower().startswith(('answer:', 'response:', 'a:')):
+                    answer = answer.split(':', 1)[1].strip()
+                
+                return answer
             else:
                 return self._get_fallback_response(message, context)
                 
@@ -257,106 +376,73 @@ Please provide a helpful and accurate response based on the nursing information 
             return self._get_fallback_response(message, context)
     
     def _get_fallback_response(self, message: str, context: List[str] = None) -> str:
-        """Provide fallback response when LM Studio is not available"""
+        """Provide concise fallback response when AI model is not available"""
         if context:
-            # Return relevant context if available
-            context_text = "\n\n".join(context[:2])  # Limit to top 2 contexts
-            return f"""**Based on KKH documentation:**
+            # Return most relevant context in a clean format
+            best_context = context[0] if context else ""
+            return f"""**From KKH Documentation:**
 
-{context_text}
+{best_context}
 
-*Note: AI model is currently unavailable. The above information is directly from KKH nursing documentation. Please consult with medical staff for specific patient care decisions.*"""
+*Note: AI model unavailable. Please consult medical staff for specific patient care decisions.*"""
         else:
-            # Provide basic responses for common queries
+            # Provide concise responses for common queries
             message_lower = message.lower()
-            if "dehydration" in message_lower:
-                return """**Signs of Dehydration in Pediatric Patients:**
+            
+            if any(word in message_lower for word in ["heart rate", "pulse", "bpm"]):
+                return """**Pediatric Heart Rates:**
+- Neonate: 120-180 bpm
+- Infant (1-12 months): 100-160 bpm  
+- Toddler (1-2 years): 90-150 bpm
+- Child (2-6 years): 80-140 bpm
 
-**Mild (5%):**
-- Slightly dry mucous membranes
-- Decreased urine output
-- Mild thirst
+*Note: AI model unavailable. Refer to current pediatric guidelines.*"""
+            
+            elif any(word in message_lower for word in ["respiratory rate", "breathing", "respiration"]):
+                return """**Pediatric Respiratory Rates:**
+- Neonate: 30-60 breaths/min
+- Infant (1-12 months): 24-40 breaths/min
+- Toddler (1-2 years): 20-30 breaths/min
+- Child (2-6 years): 18-25 breaths/min
 
-**Moderate (10%):**
-- Dry mucous membranes
-- Sunken eyes
-- Decreased skin turgor
-- Lethargy
+*Note: AI model unavailable. Refer to current pediatric guidelines.*"""
+                
+            elif "dehydration" in message_lower:
+                return """**Dehydration Signs:**
+- Mild (5%): Dry mucous membranes, decreased urine
+- Moderate (10%): Sunken eyes, decreased skin turgor
+- Severe (15%): Sunken fontanelle, altered mental status
 
-**Severe (15%):**
-- Very dry mucous membranes
-- Sunken eyes and fontanelle
-- Poor skin turgor
-- Altered mental status
-- Minimal urine output
-
-*Note: AI model is currently unavailable. Please consult medical staff for patient assessment.*"""
+*Note: AI model unavailable. Assess patient and consult medical staff.*"""
             
             elif "cpr" in message_lower:
-                return """**Pediatric CPR Guidelines:**
+                return """**Pediatric CPR:**
+- Compression depth: 1/3 chest diameter
+- Rate: 100-120/min
+- Ratio: 30:2 (single rescuer), 15:2 (two rescuers)
 
-**Compression-to-Ventilation Ratio:**
-- Single rescuer: 30:2
-- Two rescuers: 15:2
-
-**Compression Depth:**
-- At least 1/3 of chest diameter
-- Infants: 1.5 inches (4 cm)
-- Children: 2 inches (5 cm)
-
-**Compression Rate:**
-- 100-120 compressions per minute
-
-*Note: AI model is currently unavailable. Please refer to current AHA guidelines and hospital protocols.*"""
+*Note: AI model unavailable. Follow current AHA guidelines.*"""
             
-            elif "fluid" in message_lower or "resuscitation" in message_lower:
+            elif any(word in message_lower for word in ["fluid", "bolus", "resuscitation"]):
                 return """**Pediatric Fluid Resuscitation:**
-
-**Initial Management:**
-- 20 ml/kg normal saline bolus
+- Initial bolus: 20 ml/kg normal saline
 - Reassess after each bolus
-- May repeat up to 3 times (60 ml/kg total)
+- Maximum 3 boluses (60 ml/kg total)
 
-**Maintenance Fluids (Holliday-Segar):**
-- First 10 kg: 100 ml/kg/day
-- Next 10 kg: 50 ml/kg/day
-- Each additional kg: 20 ml/kg/day
-
-*Note: AI model is currently unavailable. Use the Fluid Calculator tab for precise calculations.*"""
-            
-            elif "refer" in message_lower or "doctor" in message_lower:
-                return """**When to Refer to Doctor Immediately:**
-
-**Pediatric Red Flags:**
-- Any fever in infant <3 months
-- Altered mental status
-- Difficulty breathing or stridor
-- Signs of shock or dehydration
-- Seizures
-- Persistent vomiting
-- Abnormal vital signs for age
-
-**Always Escalate:**
-- When unsure about patient condition
-- When treatment response is poor
-- For medication dosing questions
-- Before discharge planning
-
-*Note: AI model is currently unavailable. Always follow hospital protocols for escalation.*"""
+*Note: AI model unavailable. Use Fluid Calculator tab.*"""
             
             else:
                 return f"""**KKH Nursing Assistant**
 
 I understand you're asking about: "{message}"
 
-Unfortunately, the AI model is currently unavailable. However, you can:
+AI model currently unavailable. Please:
+- Use the Fluid Calculator for dosing
+- Take the Quiz to test knowledge  
+- Consult hospital protocols
+- Contact medical staff for patient care
 
-1. **Use the Fluid Calculator** for pediatric dosing calculations
-2. **Take the Quiz** to test your nursing knowledge
-3. **Refer to hospital protocols** for specific procedures
-4. **Consult with medical staff** for patient care decisions
-
-*This system is designed to assist, not replace, clinical judgment and hospital protocols.*"""
+*This system assists but doesn't replace clinical judgment.*"""
 
 # Initialize chatbot
 @st.cache_resource
