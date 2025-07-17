@@ -303,29 +303,37 @@ class KKHChatbot:
                 best_context = "\n\n".join(context[:2])
                 
                 # Create a focused prompt for direct answers
-                prompt = f"""You are a KKH nursing assistant. Use the following medical information to answer the question directly and concisely.
+                prompt = f"""You are a professional KKH nursing assistant. Your job is to provide direct, helpful answers to nursing questions based on the provided medical documentation.
 
 ========== KKH NURSING INFORMATION ==========
 {best_context}
 =============================================
 
-Question: {message}
+Nurse's Question: {message}
 
-Instructions:
-- Give a direct, professional answer based ONLY on the provided information
-- Be concise and specific (2-3 sentences maximum)
-- Include specific values, ranges, or procedures when mentioned
-- If the information isn't in the context, say "This information is not available in the current KKH documentation"
-- Use professional medical terminology appropriate for nursing staff
+CRITICAL INSTRUCTIONS:
+- READ the provided KKH information carefully
+- ANSWER the nurse's specific question directly using the information above
+- DO NOT simply copy or repeat chunks from the documentation
+- BE concise and professional (maximum 2-3 sentences)
+- INCLUDE specific values, dosages, or procedures when relevant
+- If the exact answer cannot be found in the documentation, state: "This specific information is not available in the current KKH documentation. Please consult current protocols or medical staff."
+- Use clear, professional medical language appropriate for nursing practice
 
-Answer:"""
+Provide your direct answer below:"""
             else:
                 # Fallback prompt when no context is available
-                prompt = f"""You are a KKH nursing assistant specializing in pediatric care. Answer this question professionally and concisely:
+                prompt = f"""You are a professional KKH nursing assistant specializing in pediatric care. 
 
-Question: {message}
+Nurse's Question: {message}
 
-Provide a brief, professional answer (2-3 sentences) based on standard pediatric nursing practices. If you're unsure about KKH-specific protocols, recommend consulting hospital guidelines."""
+INSTRUCTIONS:
+- Provide a direct, helpful answer based on standard pediatric nursing practices
+- Be concise and professional (maximum 2-3 sentences)
+- If you're unsure about KKH-specific protocols, recommend consulting hospital guidelines
+- Give practical, actionable guidance appropriate for nursing staff
+
+Your direct answer:"""
 
             # Prepare request payload for OpenRouter
             payload = {
@@ -333,15 +341,15 @@ Provide a brief, professional answer (2-3 sentences) based on standard pediatric
                 "messages": [
                     {
                         "role": "system",
-                        "content": "You are a professional nursing assistant at KK Women's and Children's Hospital (KKH). Provide clear, concise, and accurate medical guidance. Always be direct and specific in your responses."
+                        "content": "You are a professional nursing assistant at KK Women's and Children's Hospital (KKH). Your primary role is to provide clear, direct, and concise answers to nursing questions based on provided medical documentation. Never simply repeat or copy text from documentation - always synthesize and provide helpful, specific answers that directly address the nurse's question. Be professional, accurate, and concise in all responses."
                     },
                     {
                         "role": "user",
                         "content": prompt
                     }
                 ],
-                "temperature": 0.3,  # Lower temperature for more focused answers
-                "max_tokens": 300,   # Reduced for conciseness
+                "temperature": 0.2,  # Even lower temperature for more focused answers
+                "max_tokens": 250,   # Further reduced for greater conciseness
                 "top_p": 0.9
             }
             
