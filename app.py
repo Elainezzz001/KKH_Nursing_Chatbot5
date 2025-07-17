@@ -98,8 +98,9 @@ if 'quiz_current' not in st.session_state:
 if 'quiz_answers' not in st.session_state:
     st.session_state.quiz_answers = {}
 
-# LM Studio configuration
-LM_STUDIO_URL = "http://192.168.75.1:1234/v1/chat/completions"
+# OpenRouter API configuration
+LM_STUDIO_URL = "https://openrouter.ai/api/v1/chat/completions"
+OPENROUTER_API_KEY = "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"
 
 class KKHChatbot:
     def __init__(self):
@@ -199,7 +200,7 @@ class KKHChatbot:
             return []
     
     def chat_with_lm_studio(self, message: str, context: List[str] = None) -> str:
-        """Send chat request to LM Studio or provide fallback response"""
+        """Send chat request to OpenRouter API or provide fallback response"""
         try:
             # Prepare context-enhanced prompt
             prompt = message
@@ -214,9 +215,9 @@ Question: {message}
 
 Please provide a helpful and accurate response based on the nursing information provided."""
             
-            # Prepare request payload
+            # Prepare request payload for OpenRouter
             payload = {
-                "model": "openhermes-2.5-mistral-7b",
+                "model": "openai/gpt-3.5-turbo",
                 "messages": [
                     {
                         "role": "system",
@@ -231,10 +232,15 @@ Please provide a helpful and accurate response based on the nursing information 
                 "max_tokens": 500
             }
             
-            # Send request to LM Studio
+            # Send request to OpenRouter API
             response = requests.post(
                 LM_STUDIO_URL,
-                headers={"Content-Type": "application/json"},
+                headers={
+                    "Content-Type": "application/json",
+                    "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+                    "HTTP-Referer": "https://kkh-nursing-chatbot.fly.dev/",
+                    "X-Title": "KKH Nursing Chatbot"
+                },
                 json=payload,
                 timeout=30
             )
@@ -726,7 +732,7 @@ elif page == "ℹ️ About":
     ### 🔧 Features:
     
     #### 💬 **Intelligent Chat Assistant**
-    - Powered by LM Studio with openhermes-2.5-mistral-7b model
+    - Powered by OpenRouter API with GPT-3.5 Turbo model
     - Context-aware responses using KKH-specific nursing documentation
     - Quick access to common procedures and protocols
     
@@ -744,16 +750,16 @@ elif page == "ℹ️ About":
     
     ### 🤖 **Technology Stack:**
     - **Frontend:** Streamlit with custom CSS
-    - **AI Model:** LM Studio (openhermes-2.5-mistral-7b)
-    - **Embeddings:** intfloat/multilingual-e5-large-instruct
+    - **AI Model:** OpenRouter API (GPT-3.5 Turbo)
+    - **Embeddings:** paraphrase-MiniLM-L3-v2
     - **Vector Search:** FAISS
     - **PDF Processing:** PyPDF2
     - **Deployment:** Docker + Fly.io
     
     ### 🔒 **Privacy & Security:**
-    - All processing happens locally - no external API calls
+    - Secure cloud-based AI processing via OpenRouter API
     - Patient data remains within your infrastructure
-    - Offline-capable design for reliable access
+    - Encrypted communication with industry-standard security
     
     ### ⚠️ **Important Disclaimer:**
     This tool is designed to assist healthcare professionals and should not replace clinical judgment, 
