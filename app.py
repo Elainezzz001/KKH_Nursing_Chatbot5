@@ -13,7 +13,7 @@ import time
 # Page configuration
 st.set_page_config(
     page_title="KKH Nursing Chatbot",
-    page_icon="🏥",
+    page_icon="logo\photo_2025-06-16_15-57-21.jpg",
     layout="wide",
     initial_sidebar_state="expanded"
 )
