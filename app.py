@@ -340,181 +340,233 @@ class KKHChatbot:
         
         return enhanced
     
+    def _get_direct_answer(self, message: str) -> str:
+        """Provide direct answers for common nursing questions"""
+        message_lower = message.lower()
+        
+        # Heart rate questions
+        if any(term in message_lower for term in ['heart rate', 'pulse', 'bpm']):
+            if any(age in message_lower for age in ['neonate', 'newborn', 'birth']):
+                return "**Normal heart rate for neonates: 120-180 bpm**"
+            elif any(age in message_lower for age in ['infant', '1 year', '12 months', 'baby']):
+                return "**Normal heart rate for infants (1-12 months): 100-160 bpm**"
+            elif any(age in message_lower for age in ['toddler', '2 year', '1-2 year']):
+                return "**Normal heart rate for toddlers (1-2 years): 90-150 bpm**"
+            elif any(age in message_lower for age in ['child', '2-6 year', 'preschool']):
+                return "**Normal heart rate for children (2-6 years): 80-140 bpm**"
+            else:
+                return "**Pediatric heart rates: Neonate 120-180 bpm, Infant 100-160 bpm, Toddler 90-150 bpm, Child 80-140 bpm**"
+        
+        # Respiratory rate questions  
+        elif any(term in message_lower for term in ['respiratory rate', 'breathing rate', 'breaths per minute', 'respiration']):
+            if any(age in message_lower for age in ['neonate', 'newborn']):
+                return "**Normal respiratory rate for neonates: 30-60 breaths per minute**"
+            elif any(age in message_lower for age in ['infant', '1 year', 'baby']):
+                return "**Normal respiratory rate for infants (1-12 months): 24-40 breaths per minute**"
+            elif any(age in message_lower for age in ['toddler', '2 year']):
+                return "**Normal respiratory rate for toddlers (1-2 years): 20-30 breaths per minute**"
+            elif any(age in message_lower for age in ['child', '2-6 year']):
+                return "**Normal respiratory rate for children (2-6 years): 18-25 breaths per minute**"
+            else:
+                return "**Pediatric respiratory rates: Neonate 30-60/min, Infant 24-40/min, Toddler 20-30/min, Child 18-25/min**"
+        
+        # Fluid/dehydration questions
+        elif any(term in message_lower for term in ['fluid bolus', 'shock fluid', 'resuscitation fluid']):
+            return "**Pediatric fluid bolus for shock: 20 ml/kg normal saline, can repeat up to 3 times (maximum 60 ml/kg)**"
+        
+        elif any(term in message_lower for term in ['dehydration signs', 'dehydration symptoms']):
+            return "**Dehydration signs: Mild (5%) - dry mucous membranes; Moderate (10%) - sunken eyes, decreased skin turgor; Severe (15%) - sunken fontanelle, altered mental status**"
+        
+        # CPR questions
+        elif any(term in message_lower for term in ['cpr', 'chest compressions', 'cardiopulmonary']):
+            if 'ratio' in message_lower:
+                return "**Pediatric CPR ratio: 30:2 (single rescuer), 15:2 (two rescuers)**"
+            elif 'depth' in message_lower:
+                return "**Pediatric CPR compression depth: At least 1/3 of chest diameter**"
+            elif 'rate' in message_lower:
+                return "**Pediatric CPR compression rate: 100-120 compressions per minute**"
+            else:
+                return "**Pediatric CPR: Depth 1/3 chest diameter, Rate 100-120/min, Ratio 30:2 (single) or 15:2 (two rescuers)**"
+        
+        # Temperature/fever questions
+        elif any(term in message_lower for term in ['fever', 'temperature', 'pyrexia']):
+            if any(age in message_lower for age in ['infant', '3 months', 'neonate', 'newborn']):
+                return "**Any fever in infants <3 months requires immediate medical evaluation**"
+            else:
+                return "**Fever management: Paracetamol 15mg/kg every 4-6 hours, Ibuprofen 10mg/kg every 6-8 hours (>6 months). Avoid aspirin in children.**"
+        
+        # Choking questions
+        elif any(term in message_lower for term in ['choking', 'airway obstruction']):
+            return "**Conscious choking child: 5 back blows between shoulder blades, then 5 chest thrusts. Call for help immediately.**"
+        
+        # Hypoglycemia questions
+        elif any(term in message_lower for term in ['hypoglycemia', 'low blood sugar', 'glucose']):
+            return "**Hypoglycemia in children: Blood glucose <3.0 mmol/L. Treat with glucose gel or IV dextrose if unconscious.**"
+        
+        # Medication questions
+        elif 'paracetamol' in message_lower or 'acetaminophen' in message_lower:
+            return "**Paracetamol dosage: 15mg/kg every 4-6 hours (maximum 60mg/kg/day)**"
+        
+        elif 'ibuprofen' in message_lower:
+            return "**Ibuprofen dosage: 10mg/kg every 6-8 hours (only for children >6 months)**"
+        
+        # Blood pressure questions
+        elif any(term in message_lower for term in ['blood pressure', 'bp', 'hypertension', 'hypotension']):
+            return "**Pediatric blood pressure varies by age and height. Use age-appropriate cuffs and refer to percentile charts for interpretation.**"
+        
+        return None  # No direct answer available
+    
+    def _extract_specific_info(self, message: str, context: List[str]) -> str:
+        """Extract specific information from context based on the question"""
+        if not context:
+            return None
+            
+        message_lower = message.lower()
+        best_context = context[0] if context else ""
+        
+        # Split context into sentences
+        sentences = []
+        for ctx in context[:2]:  # Only use top 2 most relevant contexts
+            sentences.extend([s.strip() + '.' for s in ctx.split('.') if s.strip()])
+        
+        # Find sentences that contain keywords from the question
+        query_words = [word for word in message_lower.split() if len(word) > 3]
+        relevant_sentences = []
+        
+        for sentence in sentences:
+            sentence_lower = sentence.lower()
+            
+            # Count how many query words appear in this sentence
+            word_matches = sum(1 for word in query_words if word in sentence_lower)
+            
+            # Also check for specific medical terms
+            medical_indicators = ['bpm', 'beats', 'per minute', 'mmhg', 'celsius', 'ml/kg', 'mg/kg', 'normal', 'range']
+            medical_matches = sum(1 for indicator in medical_indicators if indicator in sentence_lower)
+            
+            # If sentence has good relevance, include it
+            if word_matches >= 2 or medical_matches >= 1:
+                relevant_sentences.append((sentence, word_matches + medical_matches))
+        
+        # Sort by relevance and take the best
+        relevant_sentences.sort(key=lambda x: x[1], reverse=True)
+        
+        if relevant_sentences:
+            # Take the top 1-2 most relevant sentences
+            best_sentences = [s[0] for s in relevant_sentences[:2]]
+            extracted_info = ' '.join(best_sentences)
+            
+            # Ensure it's concise (not a whole chunk)
+            if len(extracted_info) < 300:
+                return f"**From KKH Documentation:** {extracted_info}"
+        
+        return None
+    
     def chat_with_lm_studio(self, message: str, context: List[str] = None) -> str:
-        """Send chat request to OpenRouter API with improved prompt formatting"""
+        """Provide direct, concise answers using knowledge base and smart text extraction"""
         try:
-            # Prepare enhanced prompt for direct answers
+            # First, try to get a direct answer from our knowledge base
+            direct_answer = self._get_direct_answer(message)
+            if direct_answer:
+                return direct_answer
+            
+            # If no direct answer, extract specific information from context
             if context:
-                # Select the most relevant context (limit to top 2 for conciseness)
-                best_context = "\n\n".join(context[:2])
+                extracted_answer = self._extract_specific_info(message, context)
+                if extracted_answer:
+                    return extracted_answer
+            
+            # Try OpenRouter API as backup (but it's currently not working)
+            try:
+                # Prepare request payload for OpenRouter
+                payload = {
+                    "model": "openai/gpt-3.5-turbo",
+                    "messages": [
+                        {
+                            "role": "system",
+                            "content": "You are a professional nursing assistant. Provide ONLY direct answers in 1-2 sentences maximum. DO NOT repeat chunks of text."
+                        },
+                        {
+                            "role": "user",
+                            "content": f"Question: {message}\n\nProvide a direct, concise answer in 1-2 sentences:"
+                        }
+                    ],
+                    "temperature": 0.1,
+                    "max_tokens": 100,
+                    "top_p": 0.8
+                }
                 
-                # Create a focused prompt for direct answers
-                prompt = f"""You are a professional KKH nursing assistant. Your job is to extract specific information from medical documentation and provide direct, concise answers.
-
-========== KKH NURSING INFORMATION ==========
-{best_context}
-=============================================
-
-Nurse's Question: {message}
-
-CRITICAL INSTRUCTIONS:
-- EXTRACT only the specific information that answers the nurse's question
-- PROVIDE a direct answer in 1-2 sentences maximum
-- DO NOT copy entire paragraphs or chunks from the documentation
-- SUMMARIZE key facts, values, or procedures in your own words
-- INCLUDE specific numbers, dosages, or ranges when relevant
-- If no specific answer is found, say: "This information is not available in the current documentation."
-- Be extremely concise and focused on the exact question asked
-
-Direct answer (1-2 sentences only):"""
-            else:
-                # Fallback prompt when no context is available
-                prompt = f"""You are a professional KKH nursing assistant specializing in pediatric care. 
-
-Nurse's Question: {message}
-
-INSTRUCTIONS:
-- Provide a direct, helpful answer in 1-2 sentences maximum
-- Be extremely concise and focused
-- If you're unsure about KKH-specific protocols, recommend consulting hospital guidelines
-- Give practical, actionable guidance appropriate for nursing staff
-
-Direct answer (1-2 sentences):"""
-
-            # Prepare request payload for OpenRouter
-            payload = {
-                "model": "openai/gpt-3.5-turbo",
-                "messages": [
-                    {
-                        "role": "system",
-                        "content": "You are a professional nursing assistant at KK Women's and Children's Hospital (KKH). Your primary role is to provide extremely concise, direct answers to nursing questions. NEVER copy or repeat chunks from documentation. Always extract and summarize key information in 1-2 sentences maximum. Be precise, professional, and focused only on what the nurse specifically asked."
+                response = requests.post(
+                    LM_STUDIO_URL,
+                    headers={
+                        "Content-Type": "application/json",
+                        "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+                        "HTTP-Referer": "https://kkh-nursing-chatbot.fly.dev/",
+                        "X-Title": "KKH Nursing Chatbot"
                     },
-                    {
-                        "role": "user",
-                        "content": prompt
-                    }
-                ],
-                "temperature": 0.1,  # Lower temperature for more focused answers
-                "max_tokens": 150,   # Reduced for even greater conciseness
-                "top_p": 0.8
-            }
+                    json=payload,
+                    timeout=10
+                )
+                
+                if response.status_code == 200:
+                    result = response.json()
+                    answer = result['choices'][0]['message']['content'].strip()
+                    
+                    # Clean up the answer
+                    if answer.lower().startswith(('answer:', 'response:', 'a:')):
+                        answer = answer.split(':', 1)[1].strip()
+                    
+                    # Ensure it's actually concise (not a chunk)
+                    if len(answer) < 300 and not any(chunk_indicator in answer.lower() for chunk_indicator in [
+                        'according to the document', 'the text states', 'as mentioned in', 'the documentation shows'
+                    ]):
+                        return answer
+                        
+            except:
+                pass  # Fall through to knowledge base response
             
-            # Send request to OpenRouter API
-            response = requests.post(
-                LM_STUDIO_URL,
-                headers={
-                    "Content-Type": "application/json",
-                    "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-                    "HTTP-Referer": "https://kkh-nursing-chatbot.fly.dev/",
-                    "X-Title": "KKH Nursing Chatbot"
-                },
-                json=payload,
-                timeout=30
-            )
-            
-            if response.status_code == 200:
-                result = response.json()
-                answer = result['choices'][0]['message']['content'].strip()
-                
-                # Clean up the answer if it starts with "Answer:" or similar
-                if answer.lower().startswith(('answer:', 'response:', 'a:')):
-                    answer = answer.split(':', 1)[1].strip()
-                
-                return answer
-            else:
-                return self._get_fallback_response(message, context)
-                
-        except requests.exceptions.ConnectionError:
+            # Final fallback to knowledge base response
             return self._get_fallback_response(message, context)
+                
         except Exception as e:
             return self._get_fallback_response(message, context)
     
     def _get_fallback_response(self, message: str, context: List[str] = None) -> str:
-        """Provide concise fallback response when AI model is not available"""
+        """Provide concise fallback response when other methods don't work"""
+        message_lower = message.lower()
+        
+        # Try to extract specific info from context one more time
         if context:
-            # Extract key information from context instead of returning full chunks
-            best_context = context[0] if context else ""
+            extracted = self._extract_specific_info(message, context)
+            if extracted:
+                return extracted
+        
+        # Provide concise responses for common queries
+        if any(word in message_lower for word in ["heart rate", "pulse", "bpm"]):
+            return "**Pediatric Heart Rates:** Neonate 120-180 bpm | Infant 100-160 bpm | Toddler 90-150 bpm | Child 80-140 bpm"
+        
+        elif any(word in message_lower for word in ["respiratory rate", "breathing", "respiration"]):
+            return "**Pediatric Respiratory Rates:** Neonate 30-60/min | Infant 24-40/min | Toddler 20-30/min | Child 18-25/min"
             
-            # Try to extract specific information based on the question
-            message_lower = message.lower()
-            
-            # Look for specific medical values or procedures in the context
-            lines = best_context.split('\n')
-            relevant_info = []
-            
-            for line in lines:
-                line = line.strip()
-                if any(keyword in message_lower for keyword in ['heart rate', 'pulse', 'bpm']) and any(term in line.lower() for term in ['bpm', 'beats', 'heart rate', 'pulse']):
-                    relevant_info.append(line)
-                elif any(keyword in message_lower for keyword in ['respiratory', 'breathing']) and any(term in line.lower() for term in ['respiratory', 'breathing', 'breaths']):
-                    relevant_info.append(line)
-                elif any(keyword in message_lower for keyword in ['temperature', 'fever']) and any(term in line.lower() for term in ['temperature', 'fever', 'celsius', 'fahrenheit']):
-                    relevant_info.append(line)
-                elif any(keyword in message_lower for keyword in ['dehydration', 'fluid']) and any(term in line.lower() for term in ['dehydration', 'fluid', 'ml/kg']):
-                    relevant_info.append(line)
-            
-            if relevant_info:
-                return f"**From KKH Documentation:** {' '.join(relevant_info[:2])}\n\n*AI model unavailable. Consult medical staff for patient care decisions.*"
-            else:
-                return f"**Information found in KKH documentation but requires interpretation.** Please consult medical staff.\n\n*AI model unavailable.*"
+        elif "dehydration" in message_lower:
+            return "**Dehydration Signs:** Mild (5%) - dry mucous membranes | Moderate (10%) - sunken eyes | Severe (15%) - sunken fontanelle"
+        
+        elif "cpr" in message_lower:
+            return "**Pediatric CPR:** Depth 1/3 chest diameter | Rate 100-120/min | Ratio 30:2 (single rescuer)"
+        
+        elif any(word in message_lower for word in ["fluid", "bolus", "resuscitation"]):
+            return "**Pediatric Fluid Resuscitation:** 20 ml/kg normal saline bolus, repeat up to 3 times (max 60 ml/kg)"
+        
+        elif any(word in message_lower for word in ["fever", "temperature"]):
+            return "**Fever Management:** Any fever in <3 months = immediate evaluation. Paracetamol 15mg/kg q4-6h, Ibuprofen 10mg/kg q6-8h (>6 months)"
+        
+        elif "choking" in message_lower:
+            return "**Choking Management:** Conscious child - 5 back blows, then 5 chest thrusts. Call for help immediately."
+        
+        elif any(word in message_lower for word in ["hypoglycemia", "glucose", "low blood sugar"]):
+            return "**Hypoglycemia:** Blood glucose <3.0 mmol/L. Treat with glucose gel or IV dextrose if unconscious."
+        
         else:
-            # Provide concise responses for common queries
-            message_lower = message.lower()
-            
-            if any(word in message_lower for word in ["heart rate", "pulse", "bpm"]):
-                return """**Pediatric Heart Rates:**
-- Neonate: 120-180 bpm
-- Infant (1-12 months): 100-160 bpm  
-- Toddler (1-2 years): 90-150 bpm
-- Child (2-6 years): 80-140 bpm
-
-*Note: AI model unavailable. Refer to current pediatric guidelines.*"""
-            
-            elif any(word in message_lower for word in ["respiratory rate", "breathing", "respiration"]):
-                return """**Pediatric Respiratory Rates:**
-- Neonate: 30-60 breaths/min
-- Infant (1-12 months): 24-40 breaths/min
-- Toddler (1-2 years): 20-30 breaths/min
-- Child (2-6 years): 18-25 breaths/min
-
-*Note: AI model unavailable. Refer to current pediatric guidelines.*"""
-                
-            elif "dehydration" in message_lower:
-                return """**Dehydration Signs:**
-- Mild (5%): Dry mucous membranes, decreased urine
-- Moderate (10%): Sunken eyes, decreased skin turgor
-- Severe (15%): Sunken fontanelle, altered mental status
-
-*Note: AI model unavailable. Assess patient and consult medical staff.*"""
-            
-            elif "cpr" in message_lower:
-                return """**Pediatric CPR:**
-- Compression depth: 1/3 chest diameter
-- Rate: 100-120/min
-- Ratio: 30:2 (single rescuer), 15:2 (two rescuers)
-
-*Note: AI model unavailable. Follow current AHA guidelines.*"""
-            
-            elif any(word in message_lower for word in ["fluid", "bolus", "resuscitation"]):
-                return """**Pediatric Fluid Resuscitation:**
-- Initial bolus: 20 ml/kg normal saline
-- Reassess after each bolus
-- Maximum 3 boluses (60 ml/kg total)
-
-*Note: AI model unavailable. Use Fluid Calculator tab.*"""
-            
-            else:
-                return f"""**KKH Nursing Assistant**
-
-I understand you're asking about: "{message}"
-
-AI model currently unavailable. Please:
-- Use the Fluid Calculator for dosing
-- Take the Quiz to test knowledge  
-- Consult hospital protocols
-- Contact medical staff for patient care
-
-*This system assists but doesn't replace clinical judgment.*"""
+            return f"**Question about:** {message}\n\n**Please:** Use Fluid Calculator for dosing | Take Quiz to test knowledge | Consult hospital protocols for specific guidance.\n\n*For patient care decisions, always consult medical staff.*"
 
 # Initialize chatbot
 @st.cache_resource
