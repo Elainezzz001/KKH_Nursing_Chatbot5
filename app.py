@@ -141,7 +141,7 @@ class KKHChatbot:
     def load_embedding_model(_self):
         """Load the sentence transformer model"""
         try:
-            return SentenceTransformer('intfloat-multilingual-e5-large-instruct')
+            return SentenceTransformer('BAAI/bge-small-en-v1.5')
         except Exception as e:
             st.error(f"Error loading embedding model: {e}")
             return None
@@ -992,9 +992,9 @@ elif page == "ℹ️ About":
     ### 🤖 **Technology Stack:**
     - **Frontend:** Streamlit with custom CSS and KKH logo integration
     - **AI Model:** OpenRouter API (Zephyr-7b-beta)
-    - **Embeddings:** text-embedding-intfloat-multilingual-e5-large-instruct
+    - **Embeddings:** BAAI/bge-small-en-v1.5
     - **Vector Search:** FAISS
-    - **PDF Processing:** PyPDF2
+    - **PDF Processing:** PyMuPDF
     - **Image Processing:** PIL (Python Imaging Library)
     - **Deployment:** Docker + Fly.io
     
