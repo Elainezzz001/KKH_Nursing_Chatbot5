@@ -265,7 +265,7 @@ class KKHChatbot:
         
         return filtered_chunks
     
-    def retrieve_context(self, query: str, top_k: int = 3) -> List[str]:
+    def retrieve_context(self, query: str, top_k: int = 2) -> List[str]:
         """Retrieve most relevant context chunks for a query with improved matching"""
         if not self.embedding_model or not self.faiss_index:
             return []
@@ -277,7 +277,7 @@ class KKHChatbot:
             # Encode enhanced query
             query_embedding = self.embedding_model.encode([enhanced_query])
             
-            # Search similar chunks
+            # Search similar chunks (reduced from 3 to 2 for more focused context)
             scores, indices = self.faiss_index.search(query_embedding.astype('float32'), top_k)
             
             # Return relevant chunks, sorted by relevance score
@@ -285,8 +285,26 @@ class KKHChatbot:
             for i, idx in enumerate(indices[0]):
                 if idx < len(self.text_chunks):
                     chunk = self.text_chunks[idx]
-                    # Only include chunks with reasonable relevance
-                    if scores[0][i] > 0.1:  # Similarity threshold
+                    # Only include chunks with reasonable relevance and filter for conciseness
+                    if scores[0][i] > 0.15:  # Higher similarity threshold for more relevant results
+                        # Truncate very long chunks to focus on key information
+                        if len(chunk) > 400:
+                            # Try to find the most relevant sentences within the chunk
+                            sentences = chunk.split('.')
+                            relevant_sentences = []
+                            query_words = query.lower().split()
+                            
+                            for sentence in sentences:
+                                if any(word in sentence.lower() for word in query_words):
+                                    relevant_sentences.append(sentence.strip())
+                                    if len(relevant_sentences) >= 3:  # Limit to 3 most relevant sentences
+                                        break
+                            
+                            if relevant_sentences:
+                                chunk = '. '.join(relevant_sentences) + '.'
+                            else:
+                                chunk = chunk[:400] + '...'  # Fallback truncation
+                        
                         relevant_chunks.append(chunk)
             
             return relevant_chunks
@@ -331,7 +349,7 @@ class KKHChatbot:
                 best_context = "\n\n".join(context[:2])
                 
                 # Create a focused prompt for direct answers
-                prompt = f"""You are a professional KKH nursing assistant. Your job is to provide direct, helpful answers to nursing questions based on the provided medical documentation.
+                prompt = f"""You are a professional KKH nursing assistant. Your job is to extract specific information from medical documentation and provide direct, concise answers.
 
 ========== KKH NURSING INFORMATION ==========
 {best_context}
@@ -340,15 +358,15 @@ class KKHChatbot:
 Nurse's Question: {message}
 
 CRITICAL INSTRUCTIONS:
-- READ the provided KKH information carefully
-- ANSWER the nurse's specific question directly using the information above
-- DO NOT simply copy or repeat chunks from the documentation
-- BE concise and professional (maximum 2-3 sentences)
-- INCLUDE specific values, dosages, or procedures when relevant
-- If the exact answer cannot be found in the documentation, state: "This specific information is not available in the current KKH documentation. Please consult current protocols or medical staff."
-- Use clear, professional medical language appropriate for nursing practice
+- EXTRACT only the specific information that answers the nurse's question
+- PROVIDE a direct answer in 1-2 sentences maximum
+- DO NOT copy entire paragraphs or chunks from the documentation
+- SUMMARIZE key facts, values, or procedures in your own words
+- INCLUDE specific numbers, dosages, or ranges when relevant
+- If no specific answer is found, say: "This information is not available in the current documentation."
+- Be extremely concise and focused on the exact question asked
 
-Provide your direct answer below:"""
+Direct answer (1-2 sentences only):"""
             else:
                 # Fallback prompt when no context is available
                 prompt = f"""You are a professional KKH nursing assistant specializing in pediatric care. 
@@ -356,12 +374,12 @@ Provide your direct answer below:"""
 Nurse's Question: {message}
 
 INSTRUCTIONS:
-- Provide a direct, helpful answer based on standard pediatric nursing practices
-- Be concise and professional (maximum 2-3 sentences)
+- Provide a direct, helpful answer in 1-2 sentences maximum
+- Be extremely concise and focused
 - If you're unsure about KKH-specific protocols, recommend consulting hospital guidelines
 - Give practical, actionable guidance appropriate for nursing staff
 
-Your direct answer:"""
+Direct answer (1-2 sentences):"""
 
             # Prepare request payload for OpenRouter
             payload = {
@@ -369,16 +387,16 @@ Your direct answer:"""
                 "messages": [
                     {
                         "role": "system",
-                        "content": "You are a professional nursing assistant at KK Women's and Children's Hospital (KKH). Your primary role is to provide clear, direct, and concise answers to nursing questions based on provided medical documentation. Never simply repeat or copy text from documentation - always synthesize and provide helpful, specific answers that directly address the nurse's question. Be professional, accurate, and concise in all responses."
+                        "content": "You are a professional nursing assistant at KK Women's and Children's Hospital (KKH). Your primary role is to provide extremely concise, direct answers to nursing questions. NEVER copy or repeat chunks from documentation. Always extract and summarize key information in 1-2 sentences maximum. Be precise, professional, and focused only on what the nurse specifically asked."
                     },
                     {
                         "role": "user",
                         "content": prompt
                     }
                 ],
-                "temperature": 0.2,  # Even lower temperature for more focused answers
-                "max_tokens": 250,   # Further reduced for greater conciseness
-                "top_p": 0.9
+                "temperature": 0.1,  # Lower temperature for more focused answers
+                "max_tokens": 150,   # Reduced for even greater conciseness
+                "top_p": 0.8
             }
             
             # Send request to OpenRouter API
@@ -414,13 +432,31 @@ Your direct answer:"""
     def _get_fallback_response(self, message: str, context: List[str] = None) -> str:
         """Provide concise fallback response when AI model is not available"""
         if context:
-            # Return most relevant context in a clean format
+            # Extract key information from context instead of returning full chunks
             best_context = context[0] if context else ""
-            return f"""**From KKH Documentation:**
-
-{best_context}
-
-*Note: AI model unavailable. Please consult medical staff for specific patient care decisions.*"""
+            
+            # Try to extract specific information based on the question
+            message_lower = message.lower()
+            
+            # Look for specific medical values or procedures in the context
+            lines = best_context.split('\n')
+            relevant_info = []
+            
+            for line in lines:
+                line = line.strip()
+                if any(keyword in message_lower for keyword in ['heart rate', 'pulse', 'bpm']) and any(term in line.lower() for term in ['bpm', 'beats', 'heart rate', 'pulse']):
+                    relevant_info.append(line)
+                elif any(keyword in message_lower for keyword in ['respiratory', 'breathing']) and any(term in line.lower() for term in ['respiratory', 'breathing', 'breaths']):
+                    relevant_info.append(line)
+                elif any(keyword in message_lower for keyword in ['temperature', 'fever']) and any(term in line.lower() for term in ['temperature', 'fever', 'celsius', 'fahrenheit']):
+                    relevant_info.append(line)
+                elif any(keyword in message_lower for keyword in ['dehydration', 'fluid']) and any(term in line.lower() for term in ['dehydration', 'fluid', 'ml/kg']):
+                    relevant_info.append(line)
+            
+            if relevant_info:
+                return f"**From KKH Documentation:** {' '.join(relevant_info[:2])}\n\n*AI model unavailable. Consult medical staff for patient care decisions.*"
+            else:
+                return f"**Information found in KKH documentation but requires interpretation.** Please consult medical staff.\n\n*AI model unavailable.*"
         else:
             # Provide concise responses for common queries
             message_lower = message.lower()
