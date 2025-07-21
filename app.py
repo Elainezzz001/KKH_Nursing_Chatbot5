@@ -141,7 +141,7 @@ class KKHChatbot:
     def load_embedding_model(_self):
         """Load the sentence transformer model"""
         try:
-            return SentenceTransformer('paraphrase-MiniLM-L3-v2')
+            return SentenceTransformer('text-embedding-intfloat-multilingual-e5-large-instruct')
         except Exception as e:
             st.error(f"Error loading embedding model: {e}")
             return None
@@ -479,7 +479,7 @@ class KKHChatbot:
             try:
                 # Prepare request payload for OpenRouter
                 payload = {
-                    "model": "openai/gpt-3.5-turbo",
+                    "model": "huggingface/microsoft/zephyr-7b-beta",
                     "messages": [
                         {
                             "role": "system",
@@ -991,8 +991,8 @@ elif page == "ℹ️ About":
     
     ### 🤖 **Technology Stack:**
     - **Frontend:** Streamlit with custom CSS and KKH logo integration
-    - **AI Model:** OpenRouter API (GPT-3.5 Turbo)
-    - **Embeddings:** paraphrase-MiniLM-L3-v2
+    - **AI Model:** OpenRouter API (Zephyr-7b-beta)
+    - **Embeddings:** text-embedding-intfloat-multilingual-e5-large-instruct
     - **Vector Search:** FAISS
     - **PDF Processing:** PyPDF2
     - **Image Processing:** PIL (Python Imaging Library)
