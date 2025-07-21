@@ -9,11 +9,18 @@ import os
 import random
 from typing import List, Dict, Tuple
 import time
+from PIL import Image
+
+# Load page icon
+try:
+    page_icon = Image.open("logo/photo_2025-06-16_15-57-21.jpg")
+except:
+    page_icon = "🏥"  # Fallback emoji if image can't be loaded
 
 # Page configuration
 st.set_page_config(
     page_title="KKH Nursing Chatbot",
-    page_icon="logo\photo_2025-06-16_15-57-21.jpg",
+    page_icon=page_icon,
     layout="wide",
     initial_sidebar_state="expanded"
 )
