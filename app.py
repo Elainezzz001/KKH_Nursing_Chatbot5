@@ -11,11 +11,13 @@ from typing import List, Dict, Tuple
 import time
 from PIL import Image
 
-# Load page icon
+# Load page icon and logo for display
 try:
     page_icon = Image.open("logo/photo_2025-06-16_15-57-21.jpg")
+    logo_image = page_icon  # Use same image for display
 except:
     page_icon = "🏥"  # Fallback emoji if image can't be loaded
+    logo_image = None
 
 # Page configuration
 st.set_page_config(
@@ -108,6 +110,25 @@ if 'quiz_answers' not in st.session_state:
 # OpenRouter API configuration
 LM_STUDIO_URL = "https://openrouter.ai/api/v1/chat/completions"
 OPENROUTER_API_KEY = "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"
+
+# Helper function to display logo with fallback
+def display_logo_with_text(text: str, size: str = "medium"):
+    """Display logo image with text, with emoji fallback"""
+    if logo_image is not None:
+        if size == "large":
+            st.image(logo_image, width=80)
+        elif size == "medium":
+            st.image(logo_image, width=60)
+        else:
+            st.image(logo_image, width=40)
+        st.markdown(f"**{text}**")
+    else:
+        if size == "large":
+            st.markdown(f"# 🏥 {text}")
+        elif size == "medium":
+            st.markdown(f"## 🏥 {text}")
+        else:
+            st.markdown(f"### 🏥 {text}")
 
 class KKHChatbot:
     def __init__(self):
@@ -606,17 +627,30 @@ QUIZ_QUESTIONS = [
 ]
 
 # Sidebar Navigation
-st.sidebar.title("🏥 KKH Nursing Chatbot")
-st.sidebar.markdown("---")
+with st.sidebar:
+    # Display logo in sidebar
+    if logo_image is not None:
+        st.image(logo_image, width=100)
+        st.markdown("### **KKH Nursing Chatbot**")
+    else:
+        st.title("🏥 KKH Nursing Chatbot")
+    
+    st.markdown("---")
 
-page = st.sidebar.selectbox(
-    "Navigation",
-    ["💬 Chat", "💧 Fluid Calculator", "📋 Quiz", "ℹ️ About"]
-)
+    page = st.selectbox(
+        "Navigation",
+        ["💬 Chat", "💧 Fluid Calculator", "📋 Quiz", "ℹ️ About"]
+    )
 
 # Main Content based on selected page
 if page == "💬 Chat":
-    st.markdown('<h1 class="main-header">💬 KKH Nursing Chat Assistant</h1>', unsafe_allow_html=True)
+    # Chat page header with logo
+    col1, col2 = st.columns([1, 4])
+    with col1:
+        if logo_image is not None:
+            st.image(logo_image, width=80)
+    with col2:
+        st.markdown('<h1 class="main-header">KKH Nursing Chat Assistant</h1>', unsafe_allow_html=True)
     
     # Quick prompt buttons
     st.markdown("### Quick Prompts")
@@ -671,7 +705,13 @@ if page == "💬 Chat":
             st.markdown(f'<div class="chat-message bot-message"><strong>Assistant:</strong> {message["content"]}</div>', unsafe_allow_html=True)
 
 elif page == "💧 Fluid Calculator":
-    st.markdown('<h1 class="main-header">💧 Pediatric Fluid Calculator</h1>', unsafe_allow_html=True)
+    # Fluid Calculator page header with logo
+    col1, col2 = st.columns([1, 4])
+    with col1:
+        if logo_image is not None:
+            st.image(logo_image, width=80)
+    with col2:
+        st.markdown('<h1 class="main-header">Pediatric Fluid Calculator</h1>', unsafe_allow_html=True)
     
     st.markdown('<div class="fluid-calc-container">', unsafe_allow_html=True)
     
@@ -731,7 +771,13 @@ elif page == "💧 Fluid Calculator":
     """)
 
 elif page == "📋 Quiz":
-    st.markdown('<h1 class="main-header">📋 KKH Nursing Knowledge Quiz</h1>', unsafe_allow_html=True)
+    # Quiz page header with logo
+    col1, col2 = st.columns([1, 4])
+    with col1:
+        if logo_image is not None:
+            st.image(logo_image, width=80)
+    with col2:
+        st.markdown('<h1 class="main-header">KKH Nursing Knowledge Quiz</h1>', unsafe_allow_html=True)
     
     total_questions = len(QUIZ_QUESTIONS)
     
@@ -822,7 +868,13 @@ elif page == "📋 Quiz":
                 st.markdown("---")
 
 elif page == "ℹ️ About":
-    st.markdown('<h1 class="main-header">ℹ️ About KKH Nursing Chatbot</h1>', unsafe_allow_html=True)
+    # About page header with logo
+    col1, col2 = st.columns([1, 4])
+    with col1:
+        if logo_image is not None:
+            st.image(logo_image, width=80)
+    with col2:
+        st.markdown('<h1 class="main-header">About KKH Nursing Chatbot</h1>', unsafe_allow_html=True)
     
     st.markdown("""
     ## 🏥 KKH Nursing Chatbot
@@ -850,11 +902,12 @@ elif page == "ℹ️ About":
     - Topics covering pediatric emergencies, procedures, and protocols
     
     ### 🤖 **Technology Stack:**
-    - **Frontend:** Streamlit with custom CSS
+    - **Frontend:** Streamlit with custom CSS and KKH logo integration
     - **AI Model:** OpenRouter API (GPT-3.5 Turbo)
     - **Embeddings:** paraphrase-MiniLM-L3-v2
     - **Vector Search:** FAISS
     - **PDF Processing:** PyPDF2
+    - **Image Processing:** PIL (Python Imaging Library)
     - **Deployment:** Docker + Fly.io
     
     ### 🔒 **Privacy & Security:**
