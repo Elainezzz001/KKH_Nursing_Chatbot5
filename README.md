@@ -1,231 +1,193 @@
-# 🏥 KKH Nursing Chatbot
+# KKH Nursing Chatbot
 
-A comprehensive Streamlit application designed for KK Women's and Children's Hospital nursing staff, providing AI-powered assistance for pediatric nursing procedures, fluid calculations, and knowledge assessment.
+A comprehensive Streamlit-based nursing chatbot web application designed for pediatric and neonatal care guidance.
 
-## 🚀 Features
+## Features
 
-### 💬 Intelligent Chat Assistant
-- **AI-Powered Responses**: Uses LM Studio with openhermes-2.5-mistral-7b model
-- **Context-Aware**: Retrieves relevant information from KKH nursing documentation
-- **Quick Prompts**: Pre-defined buttons for common queries:
-  - Signs of dehydration
-  - Paediatric CPR steps
-  - Fluid resuscitation protocols
-  - When to refer to doctor
+🤖 **AI-Powered Chat Assistant**
+- Uses semantic search with FAISS vector store
+- Searches nursing PDF content for relevant information
+- Powered by OpenRouter API with advanced language models
+- Provides accurate, context-aware responses
 
-### 💧 Pediatric Fluid Calculator
-- **Maintenance Fluids**: Holliday-Segar method calculations
-- **Dehydration Management**: 5% and 10% dehydration replacement
-- **Shock Resuscitation**: Emergency fluid bolus calculations
-- **Age/Weight Based**: Accurate dosing for pediatric patients
+🧮 **Fluid Calculator**
+- Holliday-Segar method for maintenance fluid calculation
+- Supports pediatric patients from 0.1kg to 150kg
+- Provides daily total, hourly rate, and safe ranges
 
-### 📋 Knowledge Assessment Quiz
-- **15 Evidence-Based Questions**: Covering pediatric nursing essentials
-- **Immediate Feedback**: Explanations for each answer
-- **Score Tracking**: Performance monitoring and review
-- **Topics Include**: CPR, fluid management, emergency protocols, vital signs
+📝 **Interactive Quiz Module**
+- 15 multiple-choice questions on nursing knowledge
+- Real-time scoring and feedback
+- Questions cover pediatric/neonatal care topics
+- Restart functionality for repeated practice
 
-### 🎨 Professional UI
-- **Modern Design**: Custom CSS with medical color scheme
-- **Responsive Layout**: Sidebar navigation and organized sections
-- **Chat Bubbles**: Clear conversation display
-- **Visual Feedback**: Color-coded quiz results and calculations
+💡 **Quick Prompt Suggestions**
+- Pre-defined common nursing questions
+- One-click to ask frequent queries
+- Covers heart rates, medications, developmental milestones
 
-## 🔧 Technical Stack
+## Technology Stack
 
-- **Frontend**: Streamlit with custom CSS
-- **AI Model**: LM Studio (openhermes-2.5-mistral-7b)
-- **Embeddings**: intfloat/multilingual-e5-large-instruct
-- **Vector Search**: FAISS for document retrieval
-- **PDF Processing**: PyPDF2 for content extraction
-- **Deployment**: Docker + Fly.io
+- **Frontend**: Streamlit
+- **AI Model**: OpenRouter API (WizardLM-2-8x22b)
+- **Embeddings**: Sentence Transformers (all-MiniLM-L6-v2)
+- **Vector Store**: FAISS
+- **PDF Processing**: PyMuPDF
+- **Deployment**: Fly.io
 
-## 📋 Prerequisites
-
-1. **LM Studio Setup**:
-   - Install LM Studio from [lmstudio.ai](https://lmstudio.ai)
-   - Download the `openhermes-2.5-mistral-7b` model
-   - Start LM Studio server on `http://localhost:1234`
-
-2. **Python Environment**:
-   - Python 3.10 or higher
-   - pip package manager
-
-## 🚀 Local Development
-
-### 1. Clone and Setup
-```bash
-git clone <repository-url>
-cd "FYP Nursing Chatbot 5"
-pip install -r requirements.txt
-```
-
-### 2. Start LM Studio
-- Open LM Studio
-- Load the `openhermes-2.5-mistral-7b` model
-- Start the local server (default: http://localhost:1234)
-
-### 3. Run the Application
-```bash
-streamlit run app.py
-```
-
-The application will be available at `http://localhost:8501`
-
-## 🐳 Docker Deployment
-
-### Build and Run Locally
-```bash
-docker build -t kkh-nursing-chatbot .
-docker run -p 8080:8080 kkh-nursing-chatbot
-```
-
-**Note**: For Docker deployment, you'll need to set up LM Studio or an alternative model serving solution within the container or as a separate service.
-
-## ☁️ Fly.io Deployment
+## Local Development
 
 ### Prerequisites
-```bash
-# Install Fly CLI
-curl -L https://fly.io/install.sh | sh
+- Python 3.11+
+- Git
 
-# Login to Fly.io
-fly auth login
+### Setup
+
+1. **Clone the repository**
+   ```bash
+   git clone <repository-url>
+   cd kkh-nursing-chatbot
+   ```
+
+2. **Install dependencies**
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+3. **Configure API Key**
+   - Sign up at [OpenRouter](https://openrouter.ai/)
+   - Get your API key
+   - Update `.streamlit/secrets.toml`:
+     ```toml
+     OPENROUTER_API_KEY = "your-actual-api-key"
+     ```
+
+4. **Run the application**
+   ```bash
+   streamlit run app.py
+   ```
+
+5. **Access the app**
+   - Open http://localhost:8501 in your browser
+
+## Deployment to Fly.io
+
+### Prerequisites
+- [Fly.io CLI](https://fly.io/docs/hands-on/install-flyctl/) installed
+- Fly.io account
+
+### Deploy Steps
+
+1. **Login to Fly.io**
+   ```bash
+   flyctl auth login
+   ```
+
+2. **Set secrets**
+   ```bash
+   flyctl secrets set OPENROUTER_API_KEY="your-actual-api-key"
+   ```
+
+3. **Deploy the application**
+   ```bash
+   flyctl deploy
+   ```
+
+4. **Open your deployed app**
+   ```bash
+   flyctl open
+   ```
+
+## Project Structure
+
 ```
-
-### Deploy
-```bash
-# Initialize (if not already done)
-fly launch
-
-# Deploy
-fly deploy
-
-# Check status
-fly status
-```
-
-### Environment Configuration
-The app expects LM Studio to be available at `http://localhost:1234`. For production deployment, you may need to:
-
-1. **Option A**: Include LM Studio in the container
-2. **Option B**: Use a cloud-based model API
-3. **Option C**: Deploy LM Studio as a separate service
-
-## 📁 File Structure
-
-```
-FYP Nursing Chatbot 5/
+kkh-nursing-chatbot/
 ├── app.py                 # Main Streamlit application
 ├── requirements.txt       # Python dependencies
-├── Dockerfile            # Docker configuration
+├── Dockerfile            # Container configuration
 ├── fly.toml              # Fly.io deployment config
-├── README.md             # This file
 ├── data/
-│   └── KKH Information file.pdf  # Nursing documentation
-└── logo/
-    └── photo_2025-06-16_15-57-21.jpg  # App logo
+│   └── KKH Information file.pdf  # Nursing guide PDF
+├── logo/
+│   └── photo_2025-06-16_15-57-21.jpg  # App logo
+├── .streamlit/
+│   ├── config.toml       # Streamlit configuration
+│   └── secrets.toml      # API keys (local only)
+└── README.md            # This file
 ```
 
-## 🔒 Security & Privacy
+## Usage Guide
 
-- **Local Processing**: All AI processing happens locally
-- **No External APIs**: No patient data sent to third parties
-- **Offline Capable**: Works without internet connectivity
-- **Secure**: Patient information remains within your infrastructure
-
-## 📚 Usage Guide
-
-### Chat Assistant
-1. Select "💬 Chat" from the sidebar
+### Chat Interface
+1. Type your nursing question in the chat input
 2. Use quick prompt buttons for common questions
-3. Type custom questions in the text input
-4. The AI will search KKH documentation and provide context-aware responses
+3. View responses based on the nursing PDF content
+4. Chat history is maintained during the session
 
 ### Fluid Calculator
-1. Select "💧 Fluid Calculator" from the sidebar
-2. Enter patient weight and age
-3. Choose clinical situation (maintenance, dehydration, shock)
-4. Click "Calculate" for dosing recommendations
+1. Click "Toggle Calculator" in the sidebar
+2. Enter patient weight in kg
+3. Click "Calculate" to get maintenance fluid requirements
+4. Results show daily total, hourly rate, and safe ranges
 
-### Knowledge Quiz
-1. Select "📋 Quiz" from the sidebar
-2. Click "Start New Quiz" to begin
-3. Answer multiple-choice questions
-4. Review explanations and final score
-5. Use "Review Answers" to see detailed feedback
+### Quiz Module
+1. Click "Start Quiz" in the sidebar
+2. Answer 15 multiple-choice questions
+3. Get immediate scoring and feedback
+4. Use "Reset Quiz" to start over
 
-## 🛠️ Customization
+### Navigation
+- **New Chat**: Clears chat history and returns to main interface
+- **Start Quiz**: Begins the quiz module
+- **Toggle Calculator**: Shows/hides the fluid calculator
+- **Chat History**: Shows recent conversation topics
 
-### Adding Quiz Questions
-Edit the `QUIZ_QUESTIONS` list in `app.py`:
-```python
-QUIZ_QUESTIONS.append({
-    "question": "Your question here?",
-    "options": ["Option A", "Option B", "Option C", "Option D"],
-    "correct": 0,  # Index of correct answer
-    "explanation": "Explanation of the correct answer"
-})
-```
+## Configuration
 
-### Updating Documentation
-Replace `data/KKH Information file.pdf` with updated nursing protocols. The app will automatically re-process the content.
+### API Configuration
+The app uses OpenRouter API as a proxy to various language models. Configure your API key in:
+- Local: `.streamlit/secrets.toml`
+- Production: Fly.io secrets
 
-### Modifying Calculations
-Update the fluid calculation functions in `app.py`:
-- `calculate_maintenance_fluid()`
-- `calculate_dehydration_fluid()`
-- `calculate_shock_fluid()`
+### Model Settings
+- **Chat Model**: microsoft/wizardlm-2-8x22b
+- **Embedding Model**: sentence-transformers/all-MiniLM-L6-v2
+- **Vector Store**: FAISS with L2 distance
+- **PDF Chunking**: ~500 character chunks with sentence boundaries
 
-## 🐛 Troubleshooting
+## Troubleshooting
 
 ### Common Issues
 
-1. **LM Studio Connection Error**:
-   - Ensure LM Studio is running on port 1234
-   - Check that the model is loaded and server is started
-   - Verify no firewall blocking the connection
+1. **PDF Not Loading**
+   - Ensure `data/KKH Information file.pdf` exists
+   - Check file permissions
 
-2. **PDF Loading Issues**:
-   - Ensure `KKH Information file.pdf` exists in the `data/` folder
-   - Check PDF is readable and not password-protected
-   - Verify sufficient memory for embedding processing
+2. **API Errors**
+   - Verify OpenRouter API key is correct
+   - Check internet connectivity
+   - Ensure you have API credits
 
-3. **Performance Issues**:
-   - Increase Docker memory allocation
-   - Use smaller embedding models if needed
-   - Consider chunking large PDFs differently
+3. **Slow Performance**
+   - First run will be slower due to PDF processing
+   - Subsequent runs use cached embeddings
+   - Consider using a lighter embedding model for faster startup
 
-### Logs and Debugging
-```bash
-# View Fly.io logs
-fly logs
+### Performance Optimization
+- Embeddings are cached after first creation
+- Vector store is persisted to disk
+- Use `@st.cache_resource` for model loading
 
-# Local debugging
-streamlit run app.py --logger.level=debug
-```
+## Security Notes
 
-## 📞 Support
+- API keys are stored securely in Streamlit secrets
+- No data is stored persistently except embeddings cache
+- All conversations are session-based only
 
-For technical issues:
-1. Check the troubleshooting section above
-2. Review application logs
-3. Contact your IT department or system administrator
+## License
 
-## ⚠️ Important Disclaimer
+This project is developed for educational purposes in nursing care.
 
-This tool is designed to assist healthcare professionals and should not replace:
-- Clinical judgment
-- Hospital protocols
-- Direct physician consultation
-- Emergency procedures
+## Support
 
-Always follow your institution's guidelines and seek appropriate medical supervision when needed.
-
-## 📄 License
-
-This application is developed for internal use at KKH. Please ensure compliance with your institution's software usage policies.
-
----
-
-*KKH Nursing Chatbot v1.0 | Built for KKH Staff Use Only*
+For issues or questions, please check the troubleshooting section or contact the development team.

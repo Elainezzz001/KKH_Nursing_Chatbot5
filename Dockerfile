@@ -1,34 +1,56 @@
-FROM python:3.10-slim
+FROM python:3.11-slim
 
-# Set working directory
 WORKDIR /app
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
-    curl \
+    gcc \
+    g++ \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements and install Python dependencies
+# Copy requirements first for better Docker layer caching
 COPY requirements.txt .
+
+# Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application files
 COPY . .
 
 # Create necessary directories
-RUN mkdir -p /app/data /app/logo
+RUN mkdir -p data logo
 
-# Expose port
+# Set environment variables
+ENV PYTHONUNBUFFERED=1
+ENV PORT=8080
+
+# Expose the port
 EXPOSE 8080
 
-# Environment variables
-ENV PYTHONUNBUFFERED=1
-ENV STREAMLIT_SERVER_PORT=8080
-ENV STREAMLIT_SERVER_ADDRESS=0.0.0.0
+# Health check endpoint
+COPY <<EOF /app/health.py
+from http.server import HTTPServer, BaseHTTPRequestHandler
+import threading
+import time
 
-# Health check for Fly.io
-HEALTHCHECK --interval=30s --timeout=30s --start-period=30s --retries=3 \
-    CMD curl -f http://localhost:8080/_stcore/health || exit 1
+class HealthHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        if self.path == '/health':
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(b'OK')
+        else:
+            self.send_response(404)
+            self.end_headers()
 
-# Start the application
-CMD ["streamlit", "run", "app.py", "--server.port=8080", "--server.address=0.0.0.0", "--server.headless=true", "--server.enableCORS=false", "--server.enableXsrfProtection=false"]
+def start_health_server():
+    server = HTTPServer(('0.0.0.0', 8081), HealthHandler)
+    server.serve_forever()
+
+if __name__ == '__main__':
+    threading.Thread(target=start_health_server, daemon=True).start()
+    time.sleep(999999)
+EOF
+
+# Run the application
+CMD ["sh", "-c", "python health.py & streamlit run app.py --server.port=$PORT --server.address=0.0.0.0 --server.headless=true --server.fileWatcherType=none --server.enableCORS=false --server.enableXsrfProtection=false"]

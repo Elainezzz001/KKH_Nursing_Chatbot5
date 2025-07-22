@@ -1,161 +1,156 @@
 #!/usr/bin/env python3
 """
 Test script for KKH Nursing Chatbot
-Verifies that all dependencies are installed and can be imported.
+Run this to validate basic functionality before deployment
 """
 
-import sys
 import os
+import sys
+import subprocess
+import importlib
+import fitz  # PyMuPDF
 
-def test_imports():
-    """Test all required imports"""
-    print("🔍 Testing imports...")
-    
-    try:
-        import streamlit as st
-        print("✅ Streamlit imported successfully")
-    except ImportError as e:
-        print(f"❌ Failed to import Streamlit: {e}")
+def check_python_version():
+    """Check if Python version is compatible"""
+    print("🐍 Checking Python version...")
+    version = sys.version_info
+    if version.major == 3 and version.minor >= 8:
+        print(f"✅ Python {version.major}.{version.minor}.{version.micro} is compatible")
+        return True
+    else:
+        print(f"❌ Python {version.major}.{version.minor}.{version.micro} is not compatible. Requires Python 3.8+")
         return False
+
+def check_dependencies():
+    """Check if all required packages are installed"""
+    print("\n📦 Checking dependencies...")
     
-    try:
-        import requests
-        print("✅ Requests imported successfully")
-    except ImportError as e:
-        print(f"❌ Failed to import Requests: {e}")
-        return False
+    required_packages = [
+        'streamlit',
+        'faiss',
+        'sentence_transformers',
+        'fitz',  # PyMuPDF
+        'requests',
+        'numpy',
+        'pandas'
+    ]
     
-    try:
-        import PyPDF2
-        print("✅ PyPDF2 imported successfully")
-    except ImportError as e:
-        print(f"❌ Failed to import PyPDF2: {e}")
-        return False
+    missing_packages = []
     
-    try:
-        import sentence_transformers
-        print("✅ Sentence Transformers imported successfully")
-    except ImportError as e:
-        print(f"❌ Failed to import Sentence Transformers: {e}")
-        return False
+    for package in required_packages:
+        try:
+            if package == 'faiss':
+                importlib.import_module('faiss')
+            elif package == 'fitz':
+                importlib.import_module('fitz')
+            else:
+                importlib.import_module(package)
+            print(f"✅ {package} is installed")
+        except ImportError:
+            print(f"❌ {package} is missing")
+            missing_packages.append(package)
     
-    try:
-        import faiss
-        print("✅ FAISS imported successfully")
-    except ImportError as e:
-        print(f"❌ Failed to import FAISS: {e}")
-        return False
-    
-    try:
-        import numpy as np
-        print("✅ NumPy imported successfully")
-    except ImportError as e:
-        print(f"❌ Failed to import NumPy: {e}")
+    if missing_packages:
+        print(f"\n📝 To install missing packages, run:")
+        print(f"pip install {' '.join(missing_packages)}")
         return False
     
     return True
 
-def test_file_structure():
-    """Test required files and directories"""
-    print("\n📁 Testing file structure...")
+def check_pdf_file():
+    """Check if the PDF file exists and is readable"""
+    print("\n📄 Checking PDF file...")
     
-    required_files = [
-        "app.py",
-        "requirements.txt",
-        "Dockerfile",
-        "fly.toml"
-    ]
-    
-    required_dirs = [
-        "data",
-        "logo"
-    ]
-    
-    all_good = True
-    
-    for file in required_files:
-        if os.path.exists(file):
-            print(f"✅ {file} exists")
-        else:
-            print(f"❌ {file} missing")
-            all_good = False
-    
-    for dir in required_dirs:
-        if os.path.exists(dir):
-            print(f"✅ {dir}/ directory exists")
-        else:
-            print(f"❌ {dir}/ directory missing")
-            all_good = False
-    
-    # Check for PDF file
     pdf_path = "data/KKH Information file.pdf"
-    if os.path.exists(pdf_path):
-        print(f"✅ KKH Information file.pdf exists")
-    else:
-        print(f"⚠️  KKH Information file.pdf missing (required for full functionality)")
     
-    return all_good
-
-def test_lm_studio_connection():
-    """Test connection to LM Studio"""
-    print("\n🤖 Testing LM Studio connection...")
+    if not os.path.exists(pdf_path):
+        print(f"❌ PDF file not found at {pdf_path}")
+        return False
     
     try:
-        import requests
-        response = requests.get("http://localhost:1234/v1/models", timeout=5)
-        if response.status_code == 200:
-            print("✅ LM Studio is running and accessible")
+        doc = fitz.open(pdf_path)
+        page_count = len(doc)
+        doc.close()
+        print(f"✅ PDF file found with {page_count} pages")
+        return True
+    except Exception as e:
+        print(f"❌ Error reading PDF file: {e}")
+        return False
+
+def check_streamlit():
+    """Check if Streamlit can run"""
+    print("\n🎯 Testing Streamlit...")
+    
+    try:
+        result = subprocess.run(['streamlit', '--version'], 
+                              capture_output=True, text=True, timeout=10)
+        if result.returncode == 0:
+            print(f"✅ Streamlit is working: {result.stdout.strip()}")
             return True
         else:
-            print(f"⚠️  LM Studio returned status {response.status_code}")
+            print(f"❌ Streamlit error: {result.stderr}")
             return False
-    except requests.exceptions.ConnectionError:
-        print("⚠️  LM Studio is not running or not accessible at http://localhost:1234")
-        print("   Please start LM Studio and load the openhermes-2.5-mistral-7b model")
+    except subprocess.TimeoutExpired:
+        print("❌ Streamlit command timed out")
         return False
-    except Exception as e:
-        print(f"❌ Error testing LM Studio connection: {e}")
+    except FileNotFoundError:
+        print("❌ Streamlit command not found")
+        return False
+
+def check_secrets():
+    """Check if secrets file exists"""
+    print("\n🔐 Checking secrets configuration...")
+    
+    secrets_path = ".streamlit/secrets.toml"
+    
+    if os.path.exists(secrets_path):
+        print("✅ Secrets file found")
+        with open(secrets_path, 'r') as f:
+            content = f.read()
+            if 'OPENROUTER_API_KEY' in content and 'your-openrouter-api-key-here' not in content:
+                print("✅ API key appears to be configured")
+                return True
+            else:
+                print("⚠️  API key needs to be configured in .streamlit/secrets.toml")
+                return False
+    else:
+        print("⚠️  Secrets file not found. Create .streamlit/secrets.toml with your API key")
         return False
 
 def main():
     """Run all tests"""
-    print("🏥 KKH Nursing Chatbot - System Test")
-    print("===================================")
+    print("🔬 KKH Nursing Chatbot - Pre-deployment Tests")
+    print("=" * 50)
     
-    # Test imports
-    imports_ok = test_imports()
+    tests = [
+        check_python_version,
+        check_dependencies,
+        check_pdf_file,
+        check_streamlit,
+        check_secrets
+    ]
     
-    # Test file structure
-    files_ok = test_file_structure()
+    passed = 0
+    total = len(tests)
     
-    # Test LM Studio connection
-    lm_studio_ok = test_lm_studio_connection()
+    for test in tests:
+        if test():
+            passed += 1
     
-    print("\n📊 Test Summary:")
-    print("================")
+    print("\n" + "=" * 50)
+    print(f"📊 Test Results: {passed}/{total} passed")
     
-    if imports_ok:
-        print("✅ All Python dependencies are installed")
+    if passed == total:
+        print("🎉 All tests passed! Ready for deployment.")
+        print("\n🚀 To run locally:")
+        print("   streamlit run app.py")
+        print("\n☁️  To deploy to Fly.io:")
+        print("   ./deploy.sh (Linux/Mac) or deploy.bat (Windows)")
     else:
-        print("❌ Some Python dependencies are missing")
+        print("❌ Some tests failed. Please fix the issues before deployment.")
+        return 1
     
-    if files_ok:
-        print("✅ All required files are present")
-    else:
-        print("❌ Some required files are missing")
-    
-    if lm_studio_ok:
-        print("✅ LM Studio connection successful")
-    else:
-        print("⚠️  LM Studio not accessible (optional for testing)")
-    
-    print(f"\n🐍 Python version: {sys.version}")
-    print(f"📂 Working directory: {os.getcwd()}")
-    
-    if imports_ok and files_ok:
-        print("\n🚀 Ready to run! Execute: streamlit run app.py")
-    else:
-        print("\n🔧 Please fix the issues above before running the application")
+    return 0
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
