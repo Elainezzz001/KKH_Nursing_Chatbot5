@@ -13,7 +13,7 @@ import pickle
 
 # Configuration
 LM_STUDIO_URL = "https://openrouter.ai/api/v1/chat/completions"
-EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"  # Using a lighter model for better performance
+EMBEDDING_MODEL = "BAAI/bge-small-en-v1.5"  # Using a lighter model for better performance
 PDF_PATH = "data/KKH Information file.pdf"
 VECTOR_STORE_PATH = "vector_store.pkl"
 CHUNKS_PATH = "text_chunks.pkl"
