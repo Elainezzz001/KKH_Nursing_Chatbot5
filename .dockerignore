@@ -1,0 +1,41 @@
+# flyctl launch added from .gitignore
+# Environment and temporary files
+**\__pycache__
+**\*.py[cod]
+**\*$py.class
+**\*.so
+**\.Python
+**\env
+**\venv
+**\ENV
+**\.venv
+
+# Streamlit
+**\.streamlit\secrets.toml
+
+# Vector store and cache files
+**\vector_store.pkl
+**\text_chunks.pkl
+**\*.faiss
+
+# IDE
+**\.vscode
+**\.idea
+**\*.swp
+**\*.swo
+**\*~
+
+# OS
+**\.DS_Store
+**\Thumbs.db
+
+# Logs
+**\*.log
+
+# Temporary files
+**\*.tmp
+**\*.temp
+
+# API keys (keep as example only)
+!**\secrets.toml.example
+fly.toml
