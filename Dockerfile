@@ -44,7 +44,7 @@ class HealthHandler(BaseHTTPRequestHandler):
             self.end_headers()
 
 def start_health_server():
-    server = HTTPServer(('0.0.0.0', 8081), HealthHandler)
+    server = HTTPServer(('0.0.0.0', 8501), HealthHandler)
     server.serve_forever()
 
 if __name__ == '__main__':
