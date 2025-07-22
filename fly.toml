@@ -1,0 +1,28 @@
+app = "kkh-nursing-chatbot"
+primary_region = "sin"
+
+[build]
+
+[http_service]
+  internal_port = 8501
+  force_https = true
+  auto_stop_machines = true
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ["app"]
+
+[[http_service.checks]]
+  interval = "10s"
+  grace_period = "5s"
+  method = "GET"
+  path = "/_stcore/health"
+  protocol = "http"
+  timeout = "2s"
+
+[env]
+  LM_STUDIO_URL = "https://openrouter.ai/api/v1/chat/completions"
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory_mb = 1024
