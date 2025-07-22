@@ -38,5 +38,5 @@ COPY . .
 EXPOSE 8080
 
 # Run Streamlit with the Fly.io-assigned port
-CMD ["streamlit", "run", "app.py", "--server.port=8080", "--server.address=0.0.0.0", "--server.headless=true", "--server.enableCORS=false", "--server.enableXsrfProtection=false"]
+CMD ["streamlit", "run", "app.py", "--server.port=8080", "--server.address=0.0.0.0", "--server.headless=true", "--server.fileWatcherType=none", "--server.enableCORS=false", "--server.enableXsrfProtection=false"]
 

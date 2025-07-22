@@ -12,6 +12,7 @@ kill_timeout = '5s'
   auto_rollback = true
 
 [build]
+  image = "python:3.10"
 
 [deploy]
   strategy = 'immediate'
