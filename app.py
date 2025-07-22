@@ -294,6 +294,11 @@ def main():
         layout="wide",
         initial_sidebar_state="expanded"
     )
+
+    if os.environ.get("FLY_APP_NAME") and st.experimental_get_query_params().get("health") == ["1"]:
+        st.write("ok")
+        st.stop()
+
     
     # Custom CSS
     st.markdown("""
