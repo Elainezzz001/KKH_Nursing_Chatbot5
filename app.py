@@ -22,7 +22,7 @@ st.set_page_config(
 # Constants
 LM_STUDIO_URL = "https://openrouter.ai/api/v1/chat/completions"
 MODEL_NAME = "HuggingFaceH4/zephyr-7b-beta"
-EMBEDDING_MODEL = "intfloat/multilingual-e5-large-instruct"
+EMBEDDING_MODEL = "intfloat/multilingual-e5-base"
 PDF_PATH = "data/KKH Information file.pdf"
 EMBEDDINGS_PATH = "embeddings.pkl"
 CHUNK_SIZE = 500
