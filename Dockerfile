@@ -22,10 +22,10 @@ RUN mkdir -p data logo
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
-ENV PORT=8080
+ENV PORT=8501
 
 # Expose the port
-EXPOSE 8080
+EXPOSE 8501
 
 # Health check endpoint
 COPY <<EOF /app/health.py
@@ -53,4 +53,5 @@ if __name__ == '__main__':
 EOF
 
 # Run the application
-CMD ["sh", "-c", "python health.py & streamlit run app.py --server.port=$PORT --server.address=0.0.0.0 --server.headless=true --server.fileWatcherType=none --server.enableCORS=false --server.enableXsrfProtection=false"]
+CMD ["streamlit", "run", "app.py", "--server.port=8501", "--server.enableCORS=false"]
+
