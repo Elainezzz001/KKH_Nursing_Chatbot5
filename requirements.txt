@@ -1,6 +1,14 @@
-streamlit>=1.29.0
-sentence-transformers>=2.2.2
-faiss-cpu>=1.7.4
-PyMuPDF>=1.23.0
-requests>=2.31.0
-numpy>=1.24.0
+# Streamlit-based KKH Nursing Chatbot requirements
+streamlit==1.34.0
+sentence-transformers==2.7.0
+faiss-cpu==1.7.4
+PyPDF2==3.0.1
+requests==2.31.0
+numpy==1.26.4
+scikit-learn==1.4.2
+# For PDF parsing and compatibility
+pdfminer.six==20221105
+# For OpenRouter/LM Studio API
+# (requests already included)
+# For quiz and general utilities
+# (pickle, random, os, built-in)
