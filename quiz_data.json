@@ -1,0 +1,167 @@
+[
+  {
+    "question": "What is the recommended first-line treatment for neonatal hypoglycemia?",
+    "options": {
+      "A": "IV glucose bolus",
+      "B": "Oral feeding if possible, then IV glucose if needed",
+      "C": "Immediate intubation",
+      "D": "Wait and monitor"
+    },
+    "correct_answer": "B",
+    "explanation": "Oral feeding should be attempted first if the baby is alert and able to feed safely."
+  },
+  {
+    "question": "What is the normal respiratory rate for a newborn?",
+    "options": {
+      "A": "20-30 breaths per minute",
+      "B": "30-60 breaths per minute",
+      "C": "60-80 breaths per minute",
+      "D": "10-20 breaths per minute"
+    },
+    "correct_answer": "B",
+    "explanation": "Normal respiratory rate for newborns is 30-60 breaths per minute."
+  },
+  {
+    "question": "When should skin-to-skin contact be initiated after birth?",
+    "options": {
+      "A": "After 1 hour",
+      "B": "Immediately after birth",
+      "C": "After the baby is cleaned and weighed",
+      "D": "Only if requested by parents"
+    },
+    "correct_answer": "B",
+    "explanation": "Skin-to-skin contact should be initiated immediately after birth to promote bonding and thermoregulation."
+  },
+  {
+    "question": "What is the recommended position for a baby with gastroesophageal reflux?",
+    "options": {
+      "A": "Prone position",
+      "B": "Supine position",
+      "C": "Left lateral position",
+      "D": "Elevated supine position (30-45 degrees)"
+    },
+    "correct_answer": "D",
+    "explanation": "Elevated supine position helps reduce reflux while maintaining safe sleep positioning."
+  },
+  {
+    "question": "What is the first sign of respiratory distress in infants?",
+    "options": {
+      "A": "Cyanosis",
+      "B": "Tachypnea",
+      "C": "Bradycardia",
+      "D": "Decreased activity"
+    },
+    "correct_answer": "B",
+    "explanation": "Tachypnea (rapid breathing) is often the first sign of respiratory distress in infants."
+  },
+  {
+    "question": "When should vitamin K be administered to newborns?",
+    "options": {
+      "A": "Within 24 hours",
+      "B": "Within 6 hours",
+      "C": "Within 1 hour",
+      "D": "Only if bleeding occurs"
+    },
+    "correct_answer": "B",
+    "explanation": "Vitamin K should be administered within 6 hours of birth to prevent hemorrhagic disease."
+  },
+  {
+    "question": "What is the appropriate needle size for IM injection in newborns?",
+    "options": {
+      "A": "21G, 1 inch",
+      "B": "25G, 5/8 inch",
+      "C": "23G, 1 inch",
+      "D": "27G, 1/2 inch"
+    },
+    "correct_answer": "B",
+    "explanation": "25G, 5/8 inch needle is appropriate for IM injections in newborns."
+  },
+  {
+    "question": "What is the minimum acceptable urine output for infants?",
+    "options": {
+      "A": "0.5 mL/kg/hour",
+      "B": "1-2 mL/kg/hour",
+      "C": "3-4 mL/kg/hour",
+      "D": "5 mL/kg/hour"
+    },
+    "correct_answer": "B",
+    "explanation": "Minimum acceptable urine output for infants is 1-2 mL/kg/hour."
+  },
+  {
+    "question": "How often should vital signs be monitored in a stable newborn?",
+    "options": {
+      "A": "Every 15 minutes",
+      "B": "Every 30 minutes",
+      "C": "Every 4 hours",
+      "D": "Every 8 hours"
+    },
+    "correct_answer": "C",
+    "explanation": "For stable newborns, vital signs are typically monitored every 4 hours."
+  },
+  {
+    "question": "What is the recommended temperature range for newborn bathing water?",
+    "options": {
+      "A": "35-37°C",
+      "B": "37-39°C",
+      "C": "39-41°C",
+      "D": "33-35°C"
+    },
+    "correct_answer": "B",
+    "explanation": "Bath water should be 37-39°C for newborn safety and comfort."
+  },
+  {
+    "question": "When should the first meconium passage occur?",
+    "options": {
+      "A": "Within 8 hours",
+      "B": "Within 24 hours",
+      "C": "Within 48 hours",
+      "D": "Within 72 hours"
+    },
+    "correct_answer": "C",
+    "explanation": "First meconium passage should occur within 48 hours of birth."
+  },
+  {
+    "question": "What is the appropriate oxygen saturation target for term newborns?",
+    "options": {
+      "A": "85-90%",
+      "B": "90-95%",
+      "C": "95-100%",
+      "D": "100%"
+    },
+    "correct_answer": "C",
+    "explanation": "Oxygen saturation for term newborns should be 95-100%."
+  },
+  {
+    "question": "How should umbilical cord care be performed?",
+    "options": {
+      "A": "Apply antibiotic ointment",
+      "B": "Keep clean and dry",
+      "C": "Cover with gauze",
+      "D": "Apply alcohol daily"
+    },
+    "correct_answer": "B",
+    "explanation": "Umbilical cord should be kept clean and dry to prevent infection."
+  },
+  {
+    "question": "What is the recommended frequency for newborn feeding?",
+    "options": {
+      "A": "Every 4 hours",
+      "B": "Every 2-3 hours",
+      "C": "Every 6 hours",
+      "D": "On demand only"
+    },
+    "correct_answer": "B",
+    "explanation": "Newborns should be fed every 2-3 hours or 8-12 times per day."
+  },
+  {
+    "question": "When should a newborn's weight be checked after discharge?",
+    "options": {
+      "A": "Within 1 week",
+      "B": "Within 3-5 days",
+      "C": "Within 2 weeks",
+      "D": "Within 1 month"
+    },
+    "correct_answer": "B",
+    "explanation": "Newborn weight should be checked within 3-5 days after discharge to monitor feeding adequacy."
+  }
+]
