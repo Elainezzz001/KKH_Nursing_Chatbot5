@@ -144,7 +144,7 @@ Question: {query}
 
 Please provide a detailed answer based on the KKH guidelines provided in the context."""
         payload = {
-            "model": "mistralai/mistral-7b-instruct",
+            "model": "mistralai/Mistral-7B-Instruct-v0.2",
             "messages": [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt}
