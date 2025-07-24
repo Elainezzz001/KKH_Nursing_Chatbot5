@@ -59,46 +59,35 @@ def is_local_environment() -> bool:
 # PDF Processing Functions
 @st.cache_data
 def load_pdf_chunks(filepath: str, chunk_size: int = 1000, overlap: int = 200) -> List[str]:
-    """Extract text from PDF and split into chunks"""
     try:
         chunks = []
         with open(filepath, 'rb') as file:
             pdf_reader = PyPDF2.PdfReader(file)
             full_text = ""
-            
             for page in pdf_reader.pages:
                 full_text += page.extract_text() + "\n"
-        
-        # Split into chunks
         words = full_text.split()
         current_chunk = []
         current_size = 0
-        
         for word in words:
             current_chunk.append(word)
-            current_size += len(word) + 1  # +1 for space
-            
+            current_size += len(word) + 1
             if current_size >= chunk_size:
                 chunk_text = " ".join(current_chunk)
                 chunks.append(chunk_text)
-                
-                # Keep overlap
                 overlap_words = current_chunk[-overlap//10:] if len(current_chunk) > overlap//10 else current_chunk
                 current_chunk = overlap_words
                 current_size = sum(len(word) + 1 for word in current_chunk)
-        
-        # Add final chunk
         if current_chunk:
             chunks.append(" ".join(current_chunk))
-        
         return chunks
     except Exception as e:
         st.error(f"Error loading PDF: {e}")
         return []
 
+
 @st.cache_resource
 def load_embedding_model():
-    """Load the embedding model"""
     try:
         model = SentenceTransformer('paraphrase-MiniLM-L3-v2')
         return model
@@ -107,12 +96,9 @@ def load_embedding_model():
         return None
 
 def embed_chunks(chunks: List[str], model) -> np.ndarray:
-    """Generate embeddings for document chunks"""
     try:
         if model is None:
             return np.array([])
-        
-        # Add instruction prefix for better embeddings
         prefixed_chunks = [f"passage: {chunk}" for chunk in chunks]
         embeddings = model.encode(prefixed_chunks)
         return embeddings
@@ -121,53 +107,44 @@ def embed_chunks(chunks: List[str], model) -> np.ndarray:
         return np.array([])
 
 def search_relevant_chunks(query: str, chunks: List[str], embeddings: np.ndarray, model, top_k: int = 3) -> List[str]:
-    """Retrieve top relevant chunks to user's query"""
     try:
         if model is None or len(embeddings) == 0:
             return chunks[:top_k] if chunks else []
-        
-        # Encode query with instruction prefix
         query_embedding = model.encode([f"query: {query}"])
-        
-        # Calculate similarity
         similarities = cosine_similarity(query_embedding, embeddings)[0]
-        
-        # Get top k indices
         top_indices = np.argsort(similarities)[-top_k:][::-1]
-        
         relevant_chunks = [chunks[i] for i in top_indices if i < len(chunks)]
         return relevant_chunks
     except Exception as e:
         st.error(f"Error searching chunks: {e}")
         return chunks[:top_k] if chunks else []
 
+
 # LLM Integration
 def generate_response(context: str, query: str) -> str:
     if LLM_API_URL is None:
         return "⚠️ No LLM API URL configured. Please set the LLM_API_URL environment variable."
-
     try:
         headers = {
             "Content-Type": "application/json",
-            "Authorization": f"Bearer {os.getenv('LLM_API_KEY')}"
+            "Authorization": f"Bearer {os.getenv('LLM_API_KEY')}",
+            "HTTP-Referer": "https://kkh-nursing-chatbot.fly.dev",
+            "X-Title": "KKH Nursing Chatbot"
         }
-
-        # Truncate long context
+        context = context[:2000]
         system_prompt = """You are a specialized medical assistant for KK Women's and Children's Hospital (KKH) nurses. 
         Your role is to provide accurate, evidence-based information to help with patient care.
         Always base your responses on the provided context from the KKH medical guidelines.
         If the information is not available in the context, clearly state this.
         Keep responses concise but comprehensive, focusing on practical nursing implications."""
-
         user_prompt = f"""Context from KKH Guidelines:
 {context}
 
 Question: {query}
 
 Please provide a detailed answer based on the KKH guidelines provided in the context."""
-
         payload = {
-            "model": "openrouter/mistral-7b",  # or change if needed
+            "model": "mistralai/mistral-7b-instruct",
             "messages": [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt}
@@ -176,9 +153,7 @@ Please provide a detailed answer based on the KKH guidelines provided in the con
             "max_tokens": 800,
             "stream": False
         }
-
         response = requests.post(LLM_API_URL, headers=headers, json=payload, timeout=90)
-
         if response.status_code == 200:
             result = response.json()
             content = result['choices'][0]['message']['content']
@@ -186,12 +161,12 @@ Please provide a detailed answer based on the KKH guidelines provided in the con
                 return "⚠️ The model responded with an empty message. Try asking a simpler question or reducing the context."
             return content
         else:
-            return f"Error: Unable to get response from LLM (Status: {response.status_code})"
-
+            return f"Error: Unable to get response from LLM (Status: {response.status_code})\nResponse: {response.text}"
     except requests.exceptions.ConnectionError:
         return "⚠️ Cannot connect to the LLM API."
     except Exception as e:
         return f"Error generating response: {str(e)}"
+
 
 # Fluid Calculator
 def fluid_calculator(weight: float, age_months: int, condition: str = "normal") -> Dict[str, Any]:
