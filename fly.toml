@@ -1,4 +1,4 @@
-# fly.toml app configuration file generated for kkh-nursing-chatbot on 2025-07-24T10:08:57+08:00
+# fly.toml app configuration file for KKH Nursing Chatbot
 #
 # See https://fly.io/docs/reference/configuration/ for information about how to use this file.
 #
@@ -7,10 +7,14 @@ app = 'kkh-nursing-chatbot'
 primary_region = 'sin'
 
 [build]
+  dockerfile = 'Dockerfile'
 
 [env]
   PORT = '8501'
   RENDER = 'false'
+  STREAMLIT_SERVER_HEADLESS = 'true'
+  STREAMLIT_SERVER_ENABLE_CORS = 'false'
+  STREAMLIT_SERVER_ENABLE_XSRF_PROTECTION = 'false'
 
 [http_service]
   internal_port = 8501
@@ -21,12 +25,12 @@ primary_region = 'sin'
 
   [[http_service.checks]]
     interval = '30s'
-    timeout = '5s'
-    grace_period = '10s'
+    timeout = '10s'
+    grace_period = '15s'
     method = 'GET'
     path = '/_stcore/health'
 
 [[vm]]
-  memory = '1gb'
+  memory = '2gb'
   cpu_kind = 'shared'
   cpus = 1

@@ -1,7 +1,7 @@
 import streamlit as st
 st.set_page_config(
     page_title="KKH Nursing Chatbot",
-    page_icon="🏥",
+    page_icon="logo/photo_2025-06-16_15-57-21.jpg",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -19,7 +19,7 @@ import time
 st.markdown("""
     <style>
         .block-container {
-            padding: 1rem;
+            padding: 2.7rem;
             max-width: 1200px;
         }
         .stTextInput>div>div>input {
@@ -861,7 +861,11 @@ def process_pdf_and_embeddings():
 # Main App
 def main():
     # Header
-    st.title("🏥 KKH Nursing Chatbot")
+    col1, col2 = st.columns([1, 4])
+    with col1:
+        st.image("logo/photo_2025-06-16_15-57-21.jpg", width=100)
+    with col2:
+        st.title("KKH Nursing Chatbot")
     st.markdown("*AI Assistant for KK Women's and Children's Hospital Nurses*")
     
     # Sidebar
