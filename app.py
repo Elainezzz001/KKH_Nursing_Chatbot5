@@ -100,7 +100,7 @@ def load_pdf_chunks(filepath: str, chunk_size: int = 1000, overlap: int = 200) -
 def load_embedding_model():
     """Load the embedding model"""
     try:
-        model = SentenceTransformer('intfloat/multilingual-e5-large-instruct')
+        model = SentenceTransformer('paraphrase-MiniLM-L3-v2')
         return model
     except Exception as e:
         st.error(f"Error loading embedding model: {e}")
