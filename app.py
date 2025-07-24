@@ -23,7 +23,7 @@ except ImportError as e:
 def get_lm_studio_url() -> str:
     if os.getenv('RENDER') == 'true':
         return None  # Disable feature on Render
-    return "http://localhost:1234/v1/chat/completions"
+    return "https://openrouter.ai/api/v1/chat/completions"
 
 LM_STUDIO_URL = get_lm_studio_url()
 
