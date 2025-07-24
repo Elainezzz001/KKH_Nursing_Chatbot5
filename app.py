@@ -1,4 +1,11 @@
 import streamlit as st
+st.set_page_config(
+    page_title="KKH Nursing Chatbot",
+    page_icon="🏥",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
 import json
 import pickle
 import os
@@ -8,6 +15,60 @@ from typing import List, Dict, Any, Optional, Tuple
 import pandas as pd
 from datetime import datetime
 import time
+
+st.markdown("""
+    <style>
+        .block-container {
+            padding: 1rem;
+            max-width: 1200px;
+        }
+        .stTextInput>div>div>input {
+            font-size: 1.1rem;
+        }
+        .stButton>button {
+            font-size: 1rem;
+            border-radius: 0.5rem;
+            width: 100%;
+        }
+        .stSelectbox>div>div>select {
+            font-size: 1rem;
+        }
+        .stTextArea>div>div>textarea {
+            font-size: 1rem;
+        }
+        .quiz-question {
+            background-color: #f8f9fa;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            margin-bottom: 1rem;
+        }
+        .metric-container {
+            background-color: #e8f4fd;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            text-align: center;
+        }
+        @media (max-width: 768px) {
+            .block-container {
+                padding: 0.5rem;
+            }
+            .stButton>button {
+                font-size: 0.9rem;
+                padding: 0.5rem;
+            }
+            .metric-container {
+                padding: 0.5rem;
+            }
+        }
+        @media (max-width: 480px) {
+            .stButton>button {
+                font-size: 0.8rem;
+                padding: 0.4rem;
+            }
+        }
+    </style>
+""", unsafe_allow_html=True)
+
 
 # Import libraries for PDF processing and embeddings
 try:
@@ -21,9 +82,31 @@ except ImportError as e:
 
 # Smart configuration based on environment
 def get_llm_api_url() -> str:
-    return os.getenv("LLM_API_URL")
+    # Primary: Together.ai API
+    together_url = "https://api.together.xyz/v1/chat/completions"
+    # Fallback: LM Studio local
+    local_url = "http://localhost:1234/v1/chat/completions"
+    
+    # Check if Together.ai API key is available
+    if os.getenv("TOGETHER_API_KEY"):
+        return together_url
+    # Check if custom LLM_API_URL is set
+    elif os.getenv("LLM_API_URL"):
+        return os.getenv("LLM_API_URL")
+    # Fallback to local LM Studio
+    else:
+        return local_url
+
+def get_llm_model() -> str:
+    return os.getenv("LLM_MODEL", "mistralai/Mistral-7B-Instruct-v0.1")
+
+def get_api_key() -> str:
+    # Try Together.ai first, then generic LLM_API_KEY
+    return os.getenv("TOGETHER_API_KEY") or os.getenv("LLM_API_KEY")
 
 LLM_API_URL = get_llm_api_url()
+LLM_MODEL = get_llm_model()
+API_KEY = get_api_key()
 
 # Configuration
 PDF_PATH = "data/KKH Information file.pdf"
@@ -110,7 +193,21 @@ def search_relevant_chunks(query: str, chunks: List[str], embeddings: np.ndarray
     try:
         if model is None or len(embeddings) == 0:
             return chunks[:top_k] if chunks else []
+        
         query_embedding = model.encode([f"query: {query}"])
+        
+        # Check for dimension compatibility
+        if embeddings.shape[1] != query_embedding.shape[1]:
+            st.warning(f"Embedding dimension mismatch detected. Regenerating embeddings...")
+            # Clear cached embeddings to force regeneration
+            if os.path.exists(EMBEDDINGS_PATH):
+                os.remove(EMBEDDINGS_PATH)
+            if os.path.exists(CHUNKS_PATH):
+                os.remove(CHUNKS_PATH)
+            st.session_state.pdf_processed = False
+            st.rerun()
+            return chunks[:top_k] if chunks else []
+        
         similarities = cosine_similarity(query_embedding, embeddings)[0]
         top_indices = np.argsort(similarities)[-top_k:][::-1]
         relevant_chunks = [chunks[i] for i in top_indices if i < len(chunks)]
@@ -123,28 +220,37 @@ def search_relevant_chunks(query: str, chunks: List[str], embeddings: np.ndarray
 # LLM Integration
 def generate_response(context: str, query: str) -> str:
     if LLM_API_URL is None:
-        return "⚠️ No LLM API URL configured. Please set the LLM_API_URL environment variable."
+        return "⚠️ No LLM API URL configured. Please set the TOGETHER_API_KEY or LLM_API_URL environment variable."
+    
     try:
         headers = {
             "Content-Type": "application/json",
-            "Authorization": f"Bearer {os.getenv('LLM_API_KEY')}",
             "HTTP-Referer": "https://kkh-nursing-chatbot.fly.dev",
             "X-Title": "KKH Nursing Chatbot"
         }
+        
+        # Add authorization header if API key is available
+        if API_KEY:
+            headers["Authorization"] = f"Bearer {API_KEY}"
+        
+        # Limit context to prevent token overflow
         context = context[:2000]
+        
         system_prompt = """You are a specialized medical assistant for KK Women's and Children's Hospital (KKH) nurses. 
         Your role is to provide accurate, evidence-based information to help with patient care.
         Always base your responses on the provided context from the KKH medical guidelines.
         If the information is not available in the context, clearly state this.
         Keep responses concise but comprehensive, focusing on practical nursing implications."""
+        
         user_prompt = f"""Context from KKH Guidelines:
 {context}
 
 Question: {query}
 
 Please provide a detailed answer based on the KKH guidelines provided in the context."""
+        
         payload = {
-            "model": "mistralai/Mistral-7B-Instruct-v0.2",
+            "model": LLM_MODEL,
             "messages": [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt}
@@ -153,46 +259,77 @@ Please provide a detailed answer based on the KKH guidelines provided in the con
             "max_tokens": 800,
             "stream": False
         }
+        
         response = requests.post(LLM_API_URL, headers=headers, json=payload, timeout=90)
+        
         if response.status_code == 200:
             result = response.json()
             content = result['choices'][0]['message']['content']
             if not content.strip():
                 return "⚠️ The model responded with an empty message. Try asking a simpler question or reducing the context."
             return content
+        elif response.status_code == 404:
+            if "localhost" in LLM_API_URL:
+                return """⚠️ **LM Studio Error**: No models are currently loaded in LM Studio.
+
+**To fix this:**
+1. Open LM Studio
+2. Go to the "Local Server" tab
+3. Load a model (e.g., mistral-7b-instruct)
+4. Start the server on port 1234
+5. Try your question again
+
+**Alternative**: The app is configured to use Together.ai API as primary. Your API key is set, so this should work automatically."""
+            else:
+                return f"⚠️ Model not found on API server. Status: {response.status_code}"
         else:
-            return f"Error: Unable to get response from LLM (Status: {response.status_code})\nResponse: {response.text}"
+            return f"⚠️ API Error (Status: {response.status_code}): {response.text}"
+            
     except requests.exceptions.ConnectionError:
-        return "⚠️ Cannot connect to the LLM API."
+        if "localhost" in LLM_API_URL:
+            return """⚠️ **Cannot connect to LM Studio**
+
+**To fix this:**
+1. Make sure LM Studio is running
+2. Go to Local Server tab in LM Studio
+3. Start the server on http://localhost:1234
+4. Load a compatible model
+
+**Alternative**: The app will automatically use Together.ai API if LM Studio is unavailable."""
+        else:
+            return "⚠️ Cannot connect to the LLM API. Please check your internet connection."
     except Exception as e:
-        return f"Error generating response: {str(e)}"
+        return f"⚠️ Error generating response: {str(e)}"
 
 
 # Fluid Calculator
 def fluid_calculator(weight: float, age_months: int, condition: str = "normal") -> Dict[str, Any]:
-    """Calculate daily fluid requirements using standard pediatric formulas"""
+    """Calculate daily fluid requirements using Holliday-Segar method"""
     
-    base_fluid = 0
-    
-    # Holliday-Segar method for maintenance fluids
+    # Holliday-Segar method for maintenance fluids (mL/day)
     if weight <= 10:
-        base_fluid = weight * 100  # 100 mL/kg for first 10 kg
+        base_fluid = weight * 100  # 100 mL/kg/day for first 10 kg
     elif weight <= 20:
-        base_fluid = 1000 + (weight - 10) * 50  # 50 mL/kg for next 10 kg
+        base_fluid = 1000 + (weight - 10) * 50  # 50 mL/kg/day for next 10 kg (11-20 kg)
     else:
-        base_fluid = 1500 + (weight - 20) * 20  # 20 mL/kg for each kg > 20
+        base_fluid = 1500 + (weight - 20) * 20  # 20 mL/kg/day for each kg > 20 kg
     
-    # Adjust for age (neonates and infants need more)
-    if age_months < 1:  # Neonates
+    # Age-based adjustments for pediatric patients
+    age_factor = 1.0
+    age_notes = []
+    
+    if age_months < 1:  # Neonates (0-1 month)
         age_factor = 1.5
-    elif age_months < 6:  # Young infants
+        age_notes.append("Increased by 50% for neonatal requirements")
+    elif age_months < 6:  # Young infants (1-6 months)
         age_factor = 1.3
-    elif age_months < 12:  # Older infants
+        age_notes.append("Increased by 30% for young infant requirements")
+    elif age_months < 12:  # Older infants (6-12 months)
         age_factor = 1.2
-    elif age_months < 24:  # Toddlers
+        age_notes.append("Increased by 20% for infant requirements")
+    elif age_months < 24:  # Toddlers (1-2 years)
         age_factor = 1.1
-    else:  # Children
-        age_factor = 1.0
+        age_notes.append("Increased by 10% for toddler requirements")
     
     base_fluid *= age_factor
     
@@ -200,21 +337,28 @@ def fluid_calculator(weight: float, age_months: int, condition: str = "normal") 
     condition_factor = 1.0
     condition_notes = []
     
-    if condition.lower() == "fever":
+    condition_lower = condition.lower()
+    if "fever" in condition_lower:
         condition_factor = 1.2
-        condition_notes.append("Increased by 20% due to fever")
-    elif condition.lower() == "dehydration":
+        condition_notes.append("Increased by 20% due to fever (12% per °C above 37°C)")
+    elif "dehydration" in condition_lower:
         condition_factor = 1.5
-        condition_notes.append("Increased by 50% for rehydration")
-    elif condition.lower() == "heart failure":
+        condition_notes.append("Increased by 50% for rehydration needs")
+    elif "heart failure" in condition_lower or "cardiac" in condition_lower:
         condition_factor = 0.8
-        condition_notes.append("Reduced by 20% due to heart failure")
-    elif condition.lower() == "renal impairment":
+        condition_notes.append("Reduced by 20% due to heart failure/cardiac condition")
+    elif "renal" in condition_lower or "kidney" in condition_lower:
         condition_factor = 0.7
         condition_notes.append("Reduced by 30% due to renal impairment")
+    elif "respiratory" in condition_lower:
+        condition_factor = 1.1
+        condition_notes.append("Increased by 10% due to respiratory condition")
     
     total_fluid = base_fluid * condition_factor
     hourly_rate = total_fluid / 24
+    
+    # Calculate ml/kg/hr for reference
+    ml_kg_hr = hourly_rate / weight
     
     return {
         "weight_kg": weight,
@@ -223,7 +367,10 @@ def fluid_calculator(weight: float, age_months: int, condition: str = "normal") 
         "base_maintenance": round(base_fluid, 1),
         "total_daily": round(total_fluid, 1),
         "hourly_rate": round(hourly_rate, 1),
-        "condition_notes": condition_notes
+        "ml_kg_hr": round(ml_kg_hr, 1),
+        "age_notes": age_notes,
+        "condition_notes": condition_notes,
+        "method": "Holliday-Segar Method"
     }
 
 # Quiz Functions
@@ -630,21 +777,26 @@ def render_prompt_buttons():
         "What is the protocol for managing neonatal seizures?",
         "How to manage infant hypoglycemia?",
         "What are the signs of respiratory distress in newborns?",
+        "Protocol for febrile convulsion management?",
         "When should vitamin K be administered?",
         "What is the proper technique for umbilical cord care?",
         "How to calculate fluid requirements for pediatric patients?",
         "What are the normal vital signs for newborns?",
         "When should skin-to-skin contact be initiated?",
         "What is the recommended feeding frequency for newborns?",
-        "How to recognize signs of dehydration in infants?"
+        "How to recognize signs of dehydration in infants?",
+        "Management of neonatal jaundice protocols?",
+        "Proper positioning for infants with reflux?",
+        "Temperature monitoring guidelines for NICU?",
+        "Emergency procedures for neonatal resuscitation?"
     ]
     
-    # Create a grid of buttons
-    cols = st.columns(2)
+    # Create a grid of buttons (3 columns for better mobile responsiveness)
+    cols = st.columns(3)
     
     for i, question in enumerate(prompt_questions):
-        with cols[i % 2]:
-            if st.button(question, key=f"prompt_{i}", use_container_width=True):
+        with cols[i % 3]:
+            if st.button(question, key=f"prompt_{i}", use_container_width=True, help="Click to ask this question"):
                 return question
     
     return None
@@ -653,13 +805,38 @@ def process_pdf_and_embeddings():
     """Process PDF and create embeddings if not already done"""
     if not st.session_state.pdf_processed:
         with st.spinner("Processing PDF and creating embeddings... This may take a moment."):
+            # Load embedding model first
+            model = load_embedding_model()
+            
+            # Try to load cached embeddings first
+            if os.path.exists(CHUNKS_PATH) and os.path.exists(EMBEDDINGS_PATH):
+                try:
+                    with open(CHUNKS_PATH, 'rb') as f:
+                        chunks = pickle.load(f)
+                    with open(EMBEDDINGS_PATH, 'rb') as f:
+                        cached_embeddings = pickle.load(f)
+                    
+                    # Check if embedding dimensions match current model
+                    if model is not None:
+                        test_embedding = model.encode(["test"])
+                        expected_dim = test_embedding.shape[1]
+                        
+                        if len(cached_embeddings) > 0 and cached_embeddings.shape[1] != expected_dim:
+                            st.warning(f"Cached embeddings dimension ({cached_embeddings.shape[1]}) doesn't match current model ({expected_dim}). Regenerating...")
+                            raise ValueError("Dimension mismatch")
+                    
+                    st.session_state.chunks = chunks
+                    st.session_state.embeddings = cached_embeddings
+                    st.session_state.pdf_processed = True
+                    st.success(f"✅ Loaded cached embeddings ({len(chunks)} chunks, {cached_embeddings.shape[1]}D)")
+                    return
+                except Exception as e:
+                    st.warning(f"Could not load cached embeddings: {e}. Processing PDF...")
+            
             # Load PDF chunks
             if os.path.exists(PDF_PATH):
                 chunks = load_pdf_chunks(PDF_PATH)
                 st.session_state.chunks = chunks
-                
-                # Load embedding model
-                model = load_embedding_model()
                 
                 if model and chunks:
                     # Create embeddings
@@ -672,22 +849,17 @@ def process_pdf_and_embeddings():
                             pickle.dump(chunks, f)
                         with open(EMBEDDINGS_PATH, 'wb') as f:
                             pickle.dump(embeddings, f)
+                        st.success(f"✅ Created and saved embeddings ({len(chunks)} chunks, {embeddings.shape[1]}D)")
                     except Exception as e:
                         st.warning(f"Could not save embeddings: {e}")
                 
                 st.session_state.pdf_processed = True
             else:
                 st.error(f"PDF file not found at {PDF_PATH}")
+                st.warning("Please ensure 'KKH Information file.pdf' is in the data/ folder")
 
 # Main App
 def main():
-    st.set_page_config(
-        page_title="KKH Nursing Chatbot",
-        page_icon="🏥",
-        layout="wide",
-        initial_sidebar_state="expanded"
-    )
-    
     # Header
     st.title("🏥 KKH Nursing Chatbot")
     st.markdown("*AI Assistant for KK Women's and Children's Hospital Nurses*")
@@ -799,7 +971,7 @@ def main():
     
     elif page == "💧 Fluid Calculator":
         st.header("Fluid Requirements Calculator")
-        st.write("Calculate daily fluid requirements for pediatric patients based on weight, age, and condition.")
+        st.write("Calculate daily fluid requirements for pediatric patients using the **Holliday-Segar Method**.")
         
         col1, col2 = st.columns(2)
         
@@ -810,41 +982,132 @@ def main():
         with col2:
             condition = st.selectbox(
                 "Clinical Condition",
-                ["normal", "fever", "dehydration", "heart failure", "renal impairment"]
+                ["normal", "fever", "dehydration", "heart failure", "renal impairment", "respiratory condition"]
             )
         
         if st.button("Calculate Fluid Requirements", type="primary"):
             result = fluid_calculator(weight, age_months, condition)
             
             st.markdown("### 💧 Fluid Calculation Results")
+            st.caption(f"Using: {result['method']}")
             
-            col1, col2, col3 = st.columns(3)
+            # Main metrics in a grid
+            col1, col2, col3, col4 = st.columns(4)
             
             with col1:
-                st.metric("Daily Requirement", f"{result['total_daily']} mL")
+                st.markdown("""
+                <div class="metric-container">
+                    <h3>📊 Daily Total</h3>
+                    <h2>{} mL</h2>
+                </div>
+                """.format(result['total_daily']), unsafe_allow_html=True)
+            
             with col2:
-                st.metric("Hourly Rate", f"{result['hourly_rate']} mL/hr")
+                st.markdown("""
+                <div class="metric-container">
+                    <h3>⏰ Hourly Rate</h3>
+                    <h2>{} mL/hr</h2>
+                </div>
+                """.format(result['hourly_rate']), unsafe_allow_html=True)
+            
             with col3:
-                st.metric("Base Maintenance", f"{result['base_maintenance']} mL")
+                st.markdown("""
+                <div class="metric-container">
+                    <h3>⚖️ Per Kg/Hr</h3>
+                    <h2>{} mL/kg/hr</h2>
+                </div>
+                """.format(result['ml_kg_hr']), unsafe_allow_html=True)
+            
+            with col4:
+                st.markdown("""
+                <div class="metric-container">
+                    <h3>🏥 Base Maintenance</h3>
+                    <h2>{} mL</h2>
+                </div>
+                """.format(result['base_maintenance']), unsafe_allow_html=True)
             
             # Detailed breakdown
             st.markdown("### 📊 Calculation Details")
-            st.write(f"**Patient:** {result['weight_kg']} kg, {result['age_months']} months old")
-            st.write(f"**Condition:** {result['condition'].title()}")
+            col1, col2 = st.columns(2)
             
-            if result['condition_notes']:
-                st.info("**Adjustments:** " + ", ".join(result['condition_notes']))
+            with col1:
+                st.write(f"**Patient Information:**")
+                st.write(f"• Weight: {result['weight_kg']} kg")
+                st.write(f"• Age: {result['age_months']} months")
+                st.write(f"• Condition: {result['condition'].title()}")
+            
+            with col2:
+                st.write(f"**Holliday-Segar Calculation:**")
+                if weight <= 10:
+                    st.write(f"• {weight} kg × 100 mL/kg/day = {weight * 100} mL/day")
+                elif weight <= 20:
+                    st.write(f"• First 10 kg: 10 × 100 = 1000 mL/day")
+                    st.write(f"• Next {weight - 10} kg: {weight - 10} × 50 = {(weight - 10) * 50} mL/day")
+                    st.write(f"• **Total base:** {1000 + (weight - 10) * 50} mL/day")
+                else:
+                    st.write(f"• First 10 kg: 10 × 100 = 1000 mL/day")
+                    st.write(f"• Next 10 kg: 10 × 50 = 500 mL/day")
+                    st.write(f"• Remaining {weight - 20} kg: {weight - 20} × 20 = {(weight - 20) * 20} mL/day")
+                    st.write(f"• **Total base:** {1500 + (weight - 20) * 20} mL/day")
+            
+            # Adjustments made
+            if result['age_notes'] or result['condition_notes']:
+                st.markdown("### 🔧 Adjustments Applied")
+                if result['age_notes']:
+                    st.info("**Age Adjustment:** " + ", ".join(result['age_notes']))
+                if result['condition_notes']:
+                    st.warning("**Condition Adjustment:** " + ", ".join(result['condition_notes']))
             
             # Clinical notes
-            st.markdown("### 📋 Clinical Notes")
+            st.markdown("### 📋 Clinical Guidelines")
             st.info("""
             **Important Reminders:**
-            - Monitor urine output (minimum 1-2 mL/kg/hr)
-            - Adjust for losses (fever, diarrhea, vomiting)
-            - Consider insensible losses in different environments
-            - Regular electrolyte monitoring required
-            - Consult physician for complex cases
+            • **Monitor urine output:** Minimum 1-2 mL/kg/hr for infants, 0.5-1 mL/kg/hr for children
+            • **Adjust for losses:** Additional fluids may be needed for fever (+12% per °C above 37°C), diarrhea, vomiting
+            • **Insensible losses:** Increased in warm environments, phototherapy, respiratory distress
+            • **Electrolyte monitoring:** Regular Na+, K+, Cl-, glucose monitoring required
+            • **Clinical assessment:** Always correlate with patient's clinical condition and response
+            • **Consult physician:** For complex cases or significant deviations from normal parameters
             """)
+            
+            # Quick reference
+            with st.expander("📚 Holliday-Segar Method Reference"):
+                st.markdown("""
+                **Holliday-Segar Formula:**
+                - **First 10 kg:** 100 mL/kg/day
+                - **Next 10 kg (11-20 kg):** 50 mL/kg/day
+                - **Each kg above 20 kg:** 20 mL/kg/day
+                
+                **Normal Urine Output:**
+                - **Neonates:** 1-3 mL/kg/hr
+                - **Infants:** 1-2 mL/kg/hr
+                - **Children:** 0.5-1 mL/kg/hr
+                
+                **Common Adjustments:**
+                - **Fever:** +12% per °C above 37°C
+                - **Dehydration:** +50% for replacement
+                - **Heart failure:** -20-30%
+                - **Renal impairment:** -30-50%
+                """)
+        
+        # Quick calculation examples
+        st.markdown("---")
+        st.markdown("### 🧮 Quick Examples")
+        
+        examples = [
+            {"weight": 3.0, "age": 1, "condition": "normal", "description": "Term newborn"},
+            {"weight": 8.0, "age": 6, "condition": "normal", "description": "6-month-old infant"},
+            {"weight": 15.0, "age": 24, "condition": "fever", "description": "2-year-old with fever"},
+            {"weight": 25.0, "age": 60, "condition": "normal", "description": "5-year-old child"}
+        ]
+        
+        cols = st.columns(len(examples))
+        for i, example in enumerate(examples):
+            with cols[i]:
+                if st.button(f"{example['description']}\n{example['weight']} kg", key=f"example_{i}"):
+                    result = fluid_calculator(example['weight'], example['age'], example['condition'])
+                    st.metric("Daily Fluid", f"{result['total_daily']} mL")
+                    st.metric("Hourly Rate", f"{result['hourly_rate']} mL/hr")
     
     elif page == "📚 About":
         st.header("About KKH Nursing Chatbot")
@@ -884,13 +1147,27 @@ def main():
         col1, col2 = st.columns(2)
         
         with col1:
-            if LLM_API_URL:
-                st.success("✅ LLM API Configured")
+            st.markdown("**API Configuration:**")
+            if API_KEY:
+                if "together" in LLM_API_URL.lower():
+                    st.success("✅ Together.ai API Configured")
+                elif "localhost" in LLM_API_URL:
+                    st.info("🏠 LM Studio (Local) API Configured")
+                else:
+                    st.success("✅ Custom LLM API Configured")
+                
                 try:
-                    # Replace /chat/completions with /models if supported (OpenRouter & Together.ai support it)
-                    health_check_url = LLM_API_URL.replace('/chat/completions', '/models')
-                    response = requests.get(health_check_url, headers={"Authorization": f"Bearer {os.getenv('LLM_API_KEY')}"}, timeout=5)
-
+                    # Test API connection
+                    test_payload = {
+                        "model": LLM_MODEL,
+                        "messages": [{"role": "user", "content": "Hello"}],
+                        "max_tokens": 10
+                    }
+                    headers = {"Content-Type": "application/json"}
+                    if API_KEY:
+                        headers["Authorization"] = f"Bearer {API_KEY}"
+                    
+                    response = requests.post(LLM_API_URL, headers=headers, json=test_payload, timeout=5)
                     if response.status_code == 200:
                         st.success("✅ LLM API Connection Active")
                     else:
@@ -898,9 +1175,11 @@ def main():
                 except:
                     st.error("❌ Could not reach LLM API")
             else:
-                st.warning("🟡 LLM API not configured (check LLM_API_URL)")
+                st.warning("🟡 No API key configured")
+                st.caption("Set TOGETHER_API_KEY or LLM_API_KEY environment variable")
         
         with col2:
+            st.markdown("**Document Processing:**")
             if st.session_state.pdf_processed:
                 st.success(f"✅ PDF Processed ({len(st.session_state.chunks)} chunks)")
             else:
@@ -910,6 +1189,19 @@ def main():
                 st.success("✅ Embeddings Ready")
             else:
                 st.warning("⏳ Embeddings Not Ready")
+        
+        # Environment info
+        st.markdown("### 🌐 Environment Information")
+        env_info = {
+            "LLM API URL": LLM_API_URL,
+            "LLM Model": LLM_MODEL,
+            "Has API Key": "Yes" if API_KEY else "No",
+            "PDF Path": PDF_PATH,
+            "Environment": "Local" if is_local_environment() else "Deployed"
+        }
+        
+        for key, value in env_info.items():
+            st.write(f"**{key}:** `{value}`")
 
 if __name__ == "__main__":
     main()
