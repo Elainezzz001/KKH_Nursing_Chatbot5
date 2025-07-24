@@ -20,12 +20,10 @@ except ImportError as e:
     st.stop()
 
 # Smart configuration based on environment
-def get_lm_studio_url() -> str:
-    if os.getenv('RENDER') == 'true':
-        return None  # Disable feature on Render
-    return "https://openrouter.ai/api/v1/chat/completions"
+def get_llm_api_url() -> str:
+    return os.getenv("LLM_API_URL")
 
-LM_STUDIO_URL = get_lm_studio_url()
+LLM_API_URL = get_llm_api_url()
 
 # Configuration
 PDF_PATH = "data/KKH Information file.pdf"
@@ -145,37 +143,31 @@ def search_relevant_chunks(query: str, chunks: List[str], embeddings: np.ndarray
 
 # LLM Integration
 def generate_response(context: str, query: str) -> str:
-    """Send prompt + context to LM Studio and receive response"""
-    if not is_local_environment():
-        return "⚠️ This feature is available only on local LM Studio instance. Please run the application locally with LM Studio running on http://192.168.75.1:1234"
-    
-    # Check LM Studio URL
-    if LM_STUDIO_URL is None:
-        return "⚠️ This feature is only available locally. Please run with LM Studio enabled."
-    
+    if LLM_API_URL is None:
+        return "⚠️ No LLM API URL configured. Please set the LLM_API_URL environment variable."
+
     try:
         headers = {
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {os.getenv('LLM_API_KEY')}"
         }
 
         # Truncate long context
-        context = context[:2000]
-        
         system_prompt = """You are a specialized medical assistant for KK Women's and Children's Hospital (KKH) nurses. 
         Your role is to provide accurate, evidence-based information to help with patient care.
         Always base your responses on the provided context from the KKH medical guidelines.
         If the information is not available in the context, clearly state this.
         Keep responses concise but comprehensive, focusing on practical nursing implications."""
-        
+
         user_prompt = f"""Context from KKH Guidelines:
 {context}
 
 Question: {query}
 
 Please provide a detailed answer based on the KKH guidelines provided in the context."""
-        
+
         payload = {
-            "model": "openhermes-2.5-mistral-7b",
+            "model": "openhermes-2.5-mistral-7b",  # or change if needed
             "messages": [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt}
@@ -184,9 +176,9 @@ Please provide a detailed answer based on the KKH guidelines provided in the con
             "max_tokens": 800,
             "stream": False
         }
-        
-        response = requests.post(LM_STUDIO_URL, headers=headers, json=payload, timeout=90)
-        
+
+        response = requests.post(LLM_API_URL, headers=headers, json=payload, timeout=90)
+
         if response.status_code == 200:
             result = response.json()
             content = result['choices'][0]['message']['content']
@@ -194,10 +186,10 @@ Please provide a detailed answer based on the KKH guidelines provided in the con
                 return "⚠️ The model responded with an empty message. Try asking a simpler question or reducing the context."
             return content
         else:
-            return f"Error: Unable to get response from LM Studio (Status: {response.status_code})"
+            return f"Error: Unable to get response from LLM (Status: {response.status_code})"
 
     except requests.exceptions.ConnectionError:
-        return "⚠️ Cannot connect to LM Studio. Please ensure LM Studio is running."
+        return "⚠️ Cannot connect to the LLM API."
     except Exception as e:
         return f"Error generating response: {str(e)}"
 
