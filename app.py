@@ -909,18 +909,21 @@ def main():
         col1, col2 = st.columns(2)
         
         with col1:
-            if is_local_environment():
-                st.success("✅ Local Environment Detected")
+            if LLM_API_URL:
+                st.success("✅ LLM API Configured")
                 try:
-                    response = requests.get(LM_STUDIO_URL.replace('/v1/chat/completions', '/v1/models'), timeout=5)
+                    # Replace /chat/completions with /models if supported (OpenRouter & Together.ai support it)
+                    health_check_url = LLM_API_URL.replace('/chat/completions', '/models')
+                    response = requests.get(health_check_url, headers={"Authorization": f"Bearer {os.getenv('LLM_API_KEY')}"}, timeout=5)
+
                     if response.status_code == 200:
-                        st.success("✅ LM Studio Connection Active")
+                        st.success("✅ LLM API Connection Active")
                     else:
-                        st.error("❌ LM Studio Connection Failed")
+                        st.error(f"❌ LLM API Connection Failed (Status: {response.status_code})")
                 except:
-                    st.error("❌ LM Studio Not Accessible")
+                    st.error("❌ Could not reach LLM API")
             else:
-                st.warning("🟡 Deployed Environment - Limited Features")
+                st.warning("🟡 LLM API not configured (check LLM_API_URL)")
         
         with col2:
             if st.session_state.pdf_processed:
