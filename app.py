@@ -828,7 +828,7 @@ def process_pdf_and_embeddings():
                     st.session_state.chunks = chunks
                     st.session_state.embeddings = cached_embeddings
                     st.session_state.pdf_processed = True
-                    st.success(f"✅ Loaded cached embeddings ({len(chunks)} chunks, {cached_embeddings.shape[1]}D)")
+                    # Success message removed for cleaner UI
                     return
                 except Exception as e:
                     st.warning(f"Could not load cached embeddings: {e}. Processing PDF...")
@@ -878,10 +878,6 @@ def main():
             ["💬 Chat Assistant", "🧠 Knowledge Quiz", "💧 Fluid Calculator", "📚 About"]
         )
         
-        if is_local_environment():
-            st.success("🟢 Local Mode - Full Features Available")
-        else:
-            st.warning("🟡 Deployed Mode - Limited Features")
     
     # Process PDF on first load
     if not st.session_state.pdf_processed:
