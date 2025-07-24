@@ -167,7 +167,7 @@ Question: {query}
 Please provide a detailed answer based on the KKH guidelines provided in the context."""
 
         payload = {
-            "model": "openhermes-2.5-mistral-7b",  # or change if needed
+            "model": "openrouter/mistral-7b",  # or change if needed
             "messages": [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt}
@@ -887,7 +887,7 @@ def main():
         
         ### 🛠️ Technology
         - **Frontend**: Streamlit for interactive web interface
-        - **AI Model**: OpenHermes-2.5-Mistral-7B via LM Studio (local deployment)
+        - **AI Model**: openrouter/mistral-7b via LM Studio (local deployment)
         - **Embeddings**: Multilingual E5 Large for semantic search
         - **Document Processing**: PyPDF2 for extracting information from guidelines
         
